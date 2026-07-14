@@ -54,3 +54,11 @@ prisma/dev.db-journal
 
 # TypeScript
 *.tsbuildinfo
+
+# Test runtime artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# Code graph index
+.codegraph/
