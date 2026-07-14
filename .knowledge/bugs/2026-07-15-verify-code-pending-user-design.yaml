@@ -1,0 +1,48 @@
+id: bug-2026-07-15-001
+title: 验证码服务 pending user 设计与 cooldown 边界值
+category: bug
+severity: high
+tags: [verify-code, prisma, signup, edge-case, tiidb]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  真实集成测试发现 sendVerifyCode → resend → register 链路 4 个 bug：
+  1. sendVerifyCode 创建 pending user 后，再发码被错判 USER_EXISTS（找不到 cooldown 路径）
+  2. register 写入了 emailVerified=true 但 passwordHash='' 的「幽灵用户」（导致后续 login 失败）
+  3. resend 调用时，已注册邮箱应区分「pending (待验证)」vs「已注册 (有密码)」
+  4. cooldown 边界值：剩余 TTL = 9 分钟（elapsed=60s）应**允许**重发，剩余 9.5 分钟（elapsed=30s）应**拒绝**
+
+solution: |
+  设计修正：
+  - 「已注册」= `passwordHash` 非空（非空字符串）
+  - 「pending」= `passwordHash=''`（验证中但未设密码）
+  - register 检测到 pending → 直接 update 而不是 create
+  - 清理历史 ghost users: `db.user.deleteMany({ where: { passwordHash: '' } })`
+
+  代码（lib/auth/verify-code.ts）：
+  ```typescript
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, verifyExpiry: true, emailVerified: true, passwordHash: true },
+  });
+  if (existing && existing.passwordHash && existing.passwordHash.length > 0) {
+    return { ok: false, reason: 'USER_EXISTS' };
+  }
+  ```
+
+  cooldown 边界值测试（tests/unit/verify-code.test.ts）：
+  - elapsed = 30s（剩余 9 分 30 秒）→ 拒绝（`< 60`）
+  - elapsed = 70s（剩余 8 分 50 秒）→ 允许（`>= 60`）
+  - elapsed = 60s（剩余 9 分钟，boundary）→ 允许（不 `< 60`）
+
+  部署陷阱：`next start` 不重载源码，必须 `pnpm build` 后再 `pnpm start`。
+
+verification:
+  unit: 69/69 passed (含 5 个 verify-code 测试覆盖 cooldown 边界 + USER_EXISTS + pending 复用)
+  integration: 真实 10 步链路全通（send→resend cooldown→read code→register 201→reuse fail→USER_EXISTS→login 200→/me 200→wrong pass 401）
+  e2e: 待 Phase 9.4 Playwright 覆盖
+
+learned_from:
+  - commit: Phase 9.1 + 9.2
+  - file: lib/auth/verify-code.ts + app/api/auth/register/route.ts + tests/unit/verify-code.test.ts

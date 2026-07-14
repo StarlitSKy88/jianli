@@ -1,15 +1,70 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [verifyCode, setVerifyCode] = useState('000000');
+  const [verifyCode, setVerifyCode] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // 验证码发送状态
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeCooldown, setCodeCooldown] = useState(0); // 倒计时秒数
+  const [codeSentMsg, setCodeSentMsg] = useState<string | null>(null);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
+
+  function startCooldown(seconds: number) {
+    setCodeCooldown(seconds);
+    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    cooldownTimerRef.current = setInterval(() => {
+      setCodeCooldown((s) => {
+        if (s <= 1) {
+          if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  }
+
+  async function onSendCode() {
+    setError(null);
+    setCodeSentMsg(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('请先输入有效的邮箱');
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const r = await fetch('/api/auth/send-verify-code', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(d?.error?.message || '发送失败，请稍后重试');
+        return;
+      }
+      const hint = d?.data?.devHint ? `（${d.data.devHint}）` : '';
+      setCodeSentMsg(`验证码已发送到 ${email}${hint}`);
+      startCooldown(d?.data?.cooldownSec ?? 60);
+    } catch {
+      setError('网络错误，请检查连接');
+    } finally {
+      setSendingCode(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,17 +103,32 @@ export default function RegisterPage() {
     <main className="min-h-screen flex items-center justify-center p-8">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4">
         <h1 className="text-3xl font-bold text-center">注册</h1>
-        <p className="text-xs text-center text-gray-400">开发模式验证码：000000</p>
-        <input
-          type="email"
-          required
-          placeholder="邮箱"
-          aria-label="邮箱"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="input"
-          autoComplete="email"
-        />
+        <div className="flex gap-2">
+          <input
+            type="email"
+            required
+            placeholder="邮箱"
+            aria-label="邮箱"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="input flex-1"
+            autoComplete="email"
+          />
+          <button
+            type="button"
+            onClick={onSendCode}
+            disabled={sendingCode || codeCooldown > 0 || !email}
+            className="btn-secondary whitespace-nowrap"
+            aria-label="发送验证码"
+          >
+            {sendingCode ? '发送中…' : codeCooldown > 0 ? `${codeCooldown}s` : '获取验证码'}
+          </button>
+        </div>
+        {codeSentMsg && (
+          <p role="status" className="text-xs text-green-600">
+            {codeSentMsg}
+          </p>
+        )}
         <input
           type="password"
           required
@@ -76,6 +146,8 @@ export default function RegisterPage() {
           required
           minLength={6}
           maxLength={6}
+          inputMode="numeric"
+          pattern="[0-9]{6}"
           placeholder="6 位验证码"
           aria-label="6 位验证码"
           aria-describedby="register-verify-help"
@@ -84,7 +156,7 @@ export default function RegisterPage() {
           className="input"
         />
         <p id="register-verify-help" className="text-xs text-gray-400">
-          开发模式验证码：000000
+          点击「获取验证码」后，请查收邮箱
         </p>
         <label className="flex items-start gap-2 text-sm text-gray-600">
           <input

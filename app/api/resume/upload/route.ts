@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       parsed: extracted as object,
       currentCompany: extracted.projects[0]?.name || null,
       yearsOfExperience: extracted.yearsOfExperience,
+      techStack: extracted.skills ?? ([] as string[]),
     },
     select: {
       id: true,

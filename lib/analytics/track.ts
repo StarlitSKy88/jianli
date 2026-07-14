@@ -10,7 +10,10 @@ export type TrackEventName =
   | 'message_sent'
   | 'interview_finish'
   | 'report_view'
-  | 'pay_click';
+  | 'pay_click'
+  | 'register_success'
+  | 'register_fail'
+  | 'verify_code_request';
 
 const EVENT_WHITELIST: ReadonlySet<string> = new Set([
   'interview_start',

@@ -1,12 +1,13 @@
 // 这是 interview-buddy 的 Prisma schema
-// 10 张表，详见 docs/TECHNICAL_DESIGN.md § 3
+// 11 张表，详见 docs/TECHNICAL_DESIGN.md § 3
+// Provider: 兼容 PostgreSQL / MySQL（生产用 TiDB MySQL）
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -14,36 +15,36 @@ datasource db {
 // 1. User — 用户表
 // ============================================
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  passwordHash   String
-  nickname       String?
-  avatarUrl      String?
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  nickname     String?
+  avatarUrl    String?
 
   // 用户画像
-  age            Int?
-  city           String?
-  currentRole    String?
+  age         Int?
+  city        String?
+  currentRole String?
 
   // 状态
-  emailVerified  Boolean  @default(false)
-  verifyCode     String?
-  verifyExpiry   DateTime?
+  emailVerified Boolean   @default(false)
+  verifyCode    String?
+  verifyExpiry  DateTime?
 
   // 计费
-  freeQuotaUsed  Int      @default(0)
-  paidQuota      Int      @default(0)
+  freeQuotaUsed Int @default(0)
+  paidQuota     Int @default(0)
 
   // 时间戳
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  lastLoginAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
 
   // 关系
-  resumes        Resume[]
-  interviews     Interview[]
-  payments       Payment[]
-  trackEvents    TrackEvent[]
+  resumes     Resume[]
+  interviews  Interview[]
+  payments    Payment[]
+  trackEvents TrackEvent[]
 
   @@index([email])
   @@map("users")
@@ -53,12 +54,12 @@ model User {
 // 2. Resume — 简历表
 // ============================================
 model Resume {
-  id                String   @id @default(cuid())
-  userId            String
-  fileUrl           String?
-  fileHash          String   @unique
-  rawText           String
-  parsed            Json
+  id       String  @id @default(cuid())
+  userId   String
+  fileUrl  String?
+  fileHash String  @unique
+  rawText  String  @db.Text
+  parsed   Json
 
   // 关键字段
   name              String?
@@ -66,13 +67,13 @@ model Resume {
   currentTitle      String?
   yearsOfExperience Int?
   city              String?
-  techStack         String[]
+  techStack         Json // MySQL 兼容：JSON 列（PG 原生 String[]）
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interviews        Interview[]
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interviews Interview[]
 
   @@index([userId, createdAt])
   @@index([fileHash])
@@ -83,19 +84,19 @@ model Resume {
 // 3. Scenario — 16 关配置表
 // ============================================
 model Scenario {
-  id                   String   @id @default(cuid())
-  company              String
-  role                 String
-  level                String
-  interviewerPrompt    String
-  scoringWeights       Json
-  difficultyPrompt     String
+  id                String @id @default(cuid())
+  company           String
+  role              String
+  level             String
+  interviewerPrompt String @db.Text
+  scoringWeights    Json
+  difficultyPrompt  String @db.Text
   estimatedDurationMin Int      @default(20)
   questionPoolSize     Int      @default(50)
   isActive             Boolean  @default(true)
   createdAt            DateTime @default(now())
 
-  interviews           Interview[]
+  interviews Interview[]
 
   @@unique([company, role, level])
   @@index([company, isActive])
@@ -105,34 +106,30 @@ model Scenario {
 // ============================================
 // 4. Interview — 面试记录
 // ============================================
-enum InterviewStatus {
-  IN_PROGRESS
-  COMPLETED
-  ABANDONED
-  TIMEOUT
-}
+// InterviewStatus: IN_PROGRESS | COMPLETED | ABANDONED | TIMEOUT
+// (MySQL 不支持 ENUM，用 String + 应用层校验)
 
 model Interview {
-  id           String          @id @default(cuid())
-  userId       String
-  resumeId     String
-  scenarioId   String
+  id         String @id @default(cuid())
+  userId     String
+  resumeId   String
+  scenarioId String
 
-  startedAt    DateTime        @default(now())
-  endedAt      DateTime?
-  durationSec  Int?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  durationSec Int?
 
-  status       InterviewStatus @default(IN_PROGRESS)
-  isFreeQuota  Boolean         @default(true)
-  paymentId    String?
+  status      String  @default("IN_PROGRESS") // InterviewStatus
+  isFreeQuota Boolean @default(true)
+  paymentId   String?
 
-  totalScore   Float?
+  totalScore Float?
 
-  user         User        @relation(fields: [userId], references: [id])
-  resume       Resume      @relation(fields: [resumeId], references: [id])
-  scenario     Scenario    @relation(fields: [scenarioId], references: [id])
-  messages     Message[]
-  report       Report?
+  user     User      @relation(fields: [userId], references: [id])
+  resume   Resume    @relation(fields: [resumeId], references: [id])
+  scenario Scenario  @relation(fields: [scenarioId], references: [id])
+  messages Message[]
+  report   Report?
 
   @@index([userId, startedAt])
   @@index([status])
@@ -142,23 +139,19 @@ model Interview {
 // ============================================
 // 5. Message — 问答历史
 // ============================================
-enum MessageRole {
-  USER
-  INTERVIEWER
-  SYSTEM
-}
+// MessageRole: USER | INTERVIEWER | SYSTEM
 
 model Message {
-  id           String      @id @default(cuid())
-  interviewId  String
-  role         MessageRole
-  content      String
-  category     String?
-  difficulty   String?
-  latencyMs    Int?
-  createdAt    DateTime    @default(now())
+  id          String   @id @default(cuid())
+  interviewId String
+  role        String // MessageRole
+  content     String   @db.Text
+  category    String?
+  difficulty  String?
+  latencyMs   Int?
+  createdAt   DateTime @default(now())
 
-  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 
   @@index([interviewId, createdAt])
   @@map("messages")
@@ -168,17 +161,17 @@ model Message {
 // 6. Report — 评分报告
 // ============================================
 model Report {
-  id              String   @id @default(cuid())
-  interviewId     String   @unique
-  totalScore      Float
-  dimensionScores Json
-  improvements    Json
-  cohortRank      String?
+  id               String   @id @default(cuid())
+  interviewId      String   @unique
+  totalScore       Float
+  dimensionScores  Json
+  improvements     Json
+  cohortRank       String?
   cohortPercentile Float?
-  generatedAt     DateTime @default(now())
+  generatedAt      DateTime @default(now())
 
-  interview       Interview     @relation(fields: [interviewId], references: [id])
-  agentScores     AgentScore[]
+  interview   Interview    @relation(fields: [interviewId], references: [id])
+  agentScores AgentScore[]
 
   @@map("reports")
 }
@@ -193,11 +186,11 @@ model AgentScore {
   agentVersion    String
   totalScore      Float
   dimensionScores Json
-  reasoning       String
+  reasoning       String   @db.Text
   durationMs      Int
   createdAt       DateTime @default(now())
 
-  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([reportId])
   @@map("agent_scores")
@@ -206,30 +199,24 @@ model AgentScore {
 // ============================================
 // 8. Payment — 支付记录
 // ============================================
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
-  CANCELLED
-}
+// PaymentStatus: PENDING | PAID | FAILED | REFUNDED | CANCELLED
 
 model Payment {
-  id            String        @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   amount        Int
-  currency      String        @default("CNY")
-  status        PaymentStatus @default(PENDING)
-  outTradeNo    String        @unique
+  currency      String    @default("CNY")
+  status        String    @default("PENDING") // PaymentStatus
+  outTradeNo    String    @unique
   transactionId String?
   prepayId      String?
-  productType   String        @default("interview_quota")
-  quantity      Int           @default(1)
+  productType   String    @default("interview_quota")
+  quantity      Int       @default(1)
   paidAt        DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  user          User          @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
   @@index([status])
@@ -266,7 +253,7 @@ model TrackEvent {
   userAgent  String?
   createdAt  DateTime @default(now())
 
-  user       User?    @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([eventName, createdAt])
   @@index([userId, createdAt])
@@ -277,18 +264,18 @@ model TrackEvent {
 // 11. CaseStory — 35+ 真人案例（DB 索引，详情在 YAML）
 // ============================================
 model CaseStory {
-  id           String   @id @default(cuid())
-  storyKey     String   @unique
-  yamlPath     String
-  company      String
-  role         String
-  level        String
-  title        String
-  age          Int
-  anonymized   Boolean  @default(true)
-  summary      String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id         String   @id @default(cuid())
+  storyKey   String   @unique
+  yamlPath   String
+  company    String
+  role       String
+  level      String
+  title      String
+  age        Int
+  anonymized Boolean  @default(true)
+  summary    String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
   @@index([company, role, level])
   @@map("case_stories")

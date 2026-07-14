@@ -2,12 +2,20 @@
  * POST /api/auth/register
  * Body: { email, password, verifyCode }
  * Returns: 201 { ok: true, data: { userId } } | 4xx 错误
+ *
+ * 流程：
+ *   1) 校验 verifyCode（10 分钟内有效，一次性消费）
+ *   2) 已注册检查
+ *   3) bcrypt hash 密码
+ *   4) 写库
  */
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db/client';
 import { hashPassword } from '@/lib/auth/password';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/auth/middleware';
+import { consumeVerifyCode } from '@/lib/auth/verify-code';
+import { track } from '@/lib/analytics/track';
 
 const Body = z.object({
   email: z.string().email('邮箱格式无效'),
@@ -22,27 +30,53 @@ export async function POST(req: NextRequest) {
 
   const { email, password, verifyCode } = parsed.data;
 
-  // 1. 校验验证码（v0 用 dev bypass）
-  const isDevBypass = process.env.NODE_ENV !== 'production' && verifyCode === '000000';
-  if (!isDevBypass) {
-    // TODO: 接入真实邮件验证码（.knowledge/ 待补 entry）
-    return errorResponse('VERIFY_CODE_INVALID', '验证码无效或已过期', 400);
+  // 1) 校验验证码（真实流程，不再有 dev bypass）
+  const verification = await consumeVerifyCode(email, verifyCode);
+  if (!verification.ok) {
+    track(null, 'register_fail', { reason: `verify_${verification.reason.toLowerCase()}` });
+    switch (verification.reason) {
+      case 'NOT_FOUND':
+        return errorResponse('VERIFY_CODE_INVALID', '请先获取验证码', 400);
+      case 'EXPIRED':
+        return errorResponse('VERIFY_CODE_EXPIRED', '验证码已过期，请重新获取', 400);
+      case 'MISMATCH':
+        return errorResponse('VERIFY_CODE_INVALID', '验证码错误', 400);
+    }
   }
 
-  // 2. 已注册检查
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return errorResponse('EMAIL_TAKEN', '该邮箱已注册', 409);
-
-  // 3. hash + 创建
-  const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-      emailVerified: isDevBypass, // dev 模式自动验证
-    },
-    select: { id: true, email: true },
+  // 2) 已注册检查（防并发：pending user 也会匹配 email，所以要看 passwordHash 是否非空）
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, emailVerified: true, passwordHash: true },
   });
+  if (existing && existing.passwordHash && existing.passwordHash.length > 0) {
+    return errorResponse('EMAIL_TAKEN', '该邮箱已注册', 409);
+  }
+  // pending user 复用：直接覆盖 passwordHash（update 而不是 create）
+
+  // 3) hash + 创建/更新用户
+  const passwordHash = await hashPassword(password);
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash,
+          emailVerified: true,
+          verifyCode: null,
+          verifyExpiry: null,
+        },
+        select: { id: true, email: true },
+      })
+    : await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          emailVerified: true,
+        },
+        select: { id: true, email: true },
+      });
+
+  track(user.id, 'register_success', { email: email.replace(/(.{2}).*(@.*)/, '$1***$2') });
 
   return successResponse({ userId: user.id, email: user.email }, 201);
 }

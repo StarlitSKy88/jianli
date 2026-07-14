@@ -308,7 +308,9 @@ pnpm env-check          # 环境变量检查
 | Phase 8.2 P0 修复 | ✅ 完成（2026-07-14） | 4 BLOCK + 1 WARN 全修 |
 | Phase 8.3 生产构建 | ✅ 完成（2026-07-14） | 0 warnings / 17 routes / 烟雾测试全 200 |
 | Phase 8.3 EdgeOne 适配 | ✅ 完成（2026-07-14） | standalone + edgeone.json + 文档 |
-| Phase 8.4 复盘 | ⏳ 待开始 | 9 WARN 经验卡已固化 |
+| Phase 8.4 复盘 | ✅ 完成（2026-07-14） | 9 WARN 经验卡已固化 |
+| Phase 9.1 真实邮箱验证码 | ✅ 完成（2026-07-15） | verify-code.ts + send/register 路由 + 5 unit 测试 |
+| Phase 9.2 接入测试邮件 | ✅ 完成（2026-07-15） | send→cooldown→register→login→/me 端到端 10 步全通 |
 
 ### 当前质量基线
 
@@ -316,12 +318,13 @@ pnpm env-check          # 环境变量检查
 |---|---|
 | `pnpm type-check` | 0 errors |
 | `pnpm build` | 0 warnings / 0 errors |
-| `pnpm test` (vitest) | 58/58 passed |
+| `pnpm test` (vitest) | 69/69 passed |
+| 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | `pnpm test:e2e` (Playwright) | 13/13 passed + 1 skipped |
 | First Load JS（首页）| 87.4 kB |
 | 静态页面 | 6 个 (`/` `/login` `/register` `/interview/new` `/admin/models` `/_not-found`) |
 | 动态 API 路由 | 11 个 |
-| 知识卡 | patterns 5 + bugs 7 = 12 张 |
+| 知识卡 | patterns 5 + bugs 8 = 13 张 |
 
 ### 部署就绪
 
