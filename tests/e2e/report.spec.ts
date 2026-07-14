@@ -14,9 +14,16 @@ test('admin models API without auth → 401', async ({ request }) => {
 });
 
 test('admin models API with non-admin user → 403', async ({ request }) => {
-  const email = `e2e-nonadmin-${Date.now()}@test.local`;
+  const email = `e2e-nonadmin-${Date.now()}@jianli.app`;
+  // 触发验证码发送 + 从测试钩子拿码 + 完成注册
+  await request.post('/api/auth/send-verify-code', { data: { email } });
+  const codeRes = await request.get(
+    `/api/test-helper/get-verify-code?email=${encodeURIComponent(email)}`
+  );
+  expect(codeRes.status()).toBe(200);
+  const { data } = await codeRes.json();
   await request.post('/api/auth/register', {
-    data: { email, password: 'test123456', verifyCode: '000000' },
+    data: { email, password: 'test123456', verifyCode: data.code },
   });
   await request.post('/api/auth/login', {
     data: { email, password: 'test123456' },

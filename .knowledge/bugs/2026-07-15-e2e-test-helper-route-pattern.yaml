@@ -1,0 +1,39 @@
+---
+id: bug-2026-07-15-002
+title: Next.js 忽略下划线开头的路由目录
+category: bug
+severity: medium
+tags: [nextjs, playwright, e2e, routing, dev-only]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  E2E 测试需要测试钩子（从 DB 读验证码用于 UI 注册流程），
+  把路由放在 `app/api/_test/get-verify-code/route.ts` 后返回 404。
+  原因：Next.js 默认**忽略下划线开头的目录**（与 `_app`、`_document` 同款约定）。
+
+  触发场景：
+  - Playwright `request.get('/api/_test/get-verify-code')` → 404
+  - 即使文件存在 + dev server 运行，路由也不挂载
+
+solution: |
+  用 `test-helper/` 或 `dev-helper/` 等不带下划线的目录名：
+
+  ```
+  app/api/_test/        → 404 ❌
+  app/api/test-helper/  → 200 ✅
+  ```
+
+  同时 Playwright 配置需要：
+  1. `command: 'PORT=3001 pnpm dev'`（dev 默认 3000，与 baseURL=3001 不一致）
+  2. `env.DATABASE_URL` 从 process.env 继承（不要 hardcode）
+  3. `reuseExistingServer: true`（避免每次测试都重启 dev）
+
+verification:
+  unit: 85/85 passed
+  integration: 17/17 E2E + 1 skipped（含真实验证码链路 + UI 注册跳转 + cooldown）
+  e2e: 完整通过
+
+learned_from:
+  - commit: Phase 9.4
+  - file: app/api/test-helper/get-verify-code/route.ts + playwright.config.ts + tests/e2e/

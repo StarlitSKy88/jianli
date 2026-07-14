@@ -312,6 +312,7 @@ pnpm env-check          # 环境变量检查
 | Phase 9.1 真实邮箱验证码 | ✅ 完成（2026-07-15） | verify-code.ts + send/register 路由 + 5 unit 测试 |
 | Phase 9.2 接入测试邮件 | ✅ 完成（2026-07-15） | send→cooldown→register→login→/me 端到端 10 步全通 |
 | Phase 9.3 评分 Prompt | ✅ 完成（2026-07-15） | 8 关键 + 6 兜底 = 14 YAML + loader + 16 测试 |
+| Phase 9.4 前端 E2E | ✅ 完成（2026-07-15） | 17/17 E2E（含真实验证码链路）+ test-helper 钩子 + Playwright PORT=3001 |
 
 ### 当前质量基线
 
@@ -322,7 +323,7 @@ pnpm env-check          # 环境变量检查
 | `pnpm test` (vitest) | 85/85 passed |
 | 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
-| `pnpm test:e2e` (Playwright) | 13/13 passed + 1 skipped |
+| `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | First Load JS（首页）| 87.4 kB |
 | 静态页面 | 6 个 (`/` `/login` `/register` `/interview/new` `/admin/models` `/_not-found`) |
 | 动态 API 路由 | 11 个 |

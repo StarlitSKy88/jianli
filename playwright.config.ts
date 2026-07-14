@@ -17,13 +17,14 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'pnpm dev',
+    command: 'PORT=3001 pnpm dev',
     url: 'http://localhost:3001',
     reuseExistingServer: true,
     timeout: 60_000,
     env: {
       NODE_ENV: 'development',
-      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5433/interview_buddy',
+      // 继承调用进程的 DATABASE_URL（来自 .env.local，TiDB MySQL）
+      DATABASE_URL: process.env.DATABASE_URL || '',
     },
   },
 });
