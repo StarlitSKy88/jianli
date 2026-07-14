@@ -1,0 +1,59 @@
+id: bug-2026-07-14-003
+title: ESLint 报 "@typescript-eslint/no-unused-vars" rule not found
+category: bug
+severity: high
+tags: [eslint, typescript, husky, ci]
+created_at: 2026-07-14
+project: interview-buddy
+
+problem: |
+  首次 git commit 触发 husky pre-commit hook → 失败：
+  ```
+  Definition for rule '@typescript-eslint/no-unused-vars' was not found
+  ✖ 6 problems (6 errors, 0 warnings)
+  husky - pre-commit hook exited with code 1 (error)
+  ```
+
+  根因：
+  1. .eslintrc.json 中使用了 `@typescript-eslint/no-unused-vars` 规则
+  2. 但只装了 `eslint-config-next` + `eslint-config-prettier`
+  3. 没有装 `@typescript-eslint/eslint-plugin` 和 `@typescript-eslint/parser`
+  4. `next/core-web-vitals` 不自动引入 `@typescript-eslint`
+
+solution: |
+  补装显式依赖 + 配置 parser 和 plugin：
+
+  ```bash
+  pnpm add -D @typescript-eslint/eslint-plugin@7 @typescript-eslint/parser@7
+  ```
+
+  ```json
+  // .eslintrc.json
+  {
+    "parser": "@typescript-eslint/parser",
+    "plugins": ["@typescript-eslint"],
+    "extends": ["next/core-web-vitals", "prettier"],
+    "rules": {
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }]
+    }
+  }
+  ```
+
+  验证：
+  ```bash
+  pnpm lint  # 应输出 "ESLint: No issues found"
+  ```
+
+  预防（关键！）：
+  - 任何 `.eslintrc.json` 引用新的 rule 前，必须先确认 plugin 已装
+  - CI 加 `pnpm lint` 作为合并门禁
+  - 团队评审规范：plugin 必须与 rule 一一对应
+
+verification:
+  lint_clean: pnpm lint → "ESLint: No issues found"
+  pre_commit: pnpm pre-commit → exit 0
+
+learned_from:
+  - task: Phase 0.5 → Phase 0.6
+  - file: .eslintrc.json
+  - commit: (本次修复时即固化)

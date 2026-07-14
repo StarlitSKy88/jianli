@@ -1,0 +1,8 @@
+.next/
+node_modules/
+.knowledge/
+out/
+build/
+coverage/
+pnpm-lock.yaml
+*.md

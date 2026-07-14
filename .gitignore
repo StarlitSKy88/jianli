@@ -1,0 +1,56 @@
+# ============================================
+# Next.js + Node.js 标准 .gitignore
+# (基于 https://gitignore.io/api/react,nextjs,node )
+# ============================================
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# 本地环境变量（绝不可提交！）
+.env
+.env.local
+.env*.local
+
+# 测试
+coverage/
+*.lcov
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 日志
+logs/
+*.log
+
+# 临时文件
+.tmp/
+.cache/
+.playwright-mcp/
+.playwright/
+
+# Prisma 本地数据库
+prisma/dev.db
+prisma/dev.db-journal
+
+# 复利知识库的本地缓存（知识库本身在 git 里）
+.knowledge/.cache/
+
+# TypeScript
+*.tsbuildinfo
