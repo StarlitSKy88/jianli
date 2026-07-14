@@ -1,0 +1,64 @@
+id: bug-2026-07-14-005
+title: bcryptjs@2.4.3 缺失 TypeScript 类型定义
+category: bug
+severity: medium
+tags: [typescript, bcryptjs, types]
+created_at: 2026-07-14
+project: interview-buddy
+
+problem: |
+  装 @types/bcryptjs@3 后，pnpm type-check 报：
+  ```
+  error TS7016: Could not find a declaration file for module 'bcryptjs'.
+  Try `npm i --save-dev @types/bcryptjs` if it exists
+  ```
+
+  检查发现：@types/bcryptjs 的 package.json 只有 411 字节，**没有 .d.ts 文件**！
+
+  ```bash
+  ls node_modules/@types/bcryptjs/
+  # 只有 LICENSE README.md package.json ← 没有 index.d.ts
+  ```
+
+  根因：@types/bcryptjs 是个废弃的空壳包（实际类型在 `bcryptjs` 包内部）。
+
+solution: |
+  不依赖 @types/bcryptjs（已废弃），写本地类型声明：
+
+  ```ts
+  // types/bcryptjs.d.ts
+  declare module 'bcryptjs' {
+    export function hash(data: string, saltOrRounds: number | string): Promise<string>;
+    export function compare(data: string, encrypted: string): Promise<boolean>;
+    export function genSaltSync(rounds?: number): string;
+    export function hashSync(data: string, saltOrRounds: number | string): string;
+    export function compareSync(data: string, encrypted: string): boolean;
+  }
+  ```
+
+  配合 tsconfig.json：
+  - `"types": ["node"]` 显式声明 types 范围
+  - include 已包含 `**/*.ts` 通配符（自动覆盖 types/*.d.ts）
+  - 改 import 语法为 `import * as bcrypt from 'bcryptjs'`
+    （更兼容 namespace 风格）
+
+  验证：
+  ```bash
+  pnpm type-check  # exit 0
+  pnpm test        # 8 passed
+  ```
+
+verification:
+  type_check: pnpm type-check → exit 0
+  tests: pnpm test → "Test Files 2 passed"
+  lint: pnpm lint → "ESLint: No issues found"
+  api_e2e: 7/7 scenarios passed (register/login/me/logout)
+
+learned_from:
+  - task: Phase 2
+  - file: types/bcryptjs.d.ts + lib/auth/password.ts
+
+prevention:
+  - 任何 .d.ts 缺失警告：先查 `ls node_modules/@types/<pkg>/`
+  - 如果包名有 @types/* 但 .d.ts 缺失，写本地 declare
+  - 不依赖 DefinitelyTyped 的废弃包
