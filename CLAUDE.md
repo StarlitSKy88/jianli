@@ -2,7 +2,7 @@
 
 > **核心哲学**：修完 bug 就固化解法 — 让系统越用越聪明
 > **本文件是项目的"大脑"，每次重大决策后必须更新**
-> **最后更新**：2026-07-14
+> **最后更新**：2026-07-14 (Phase 8.3 完成)
 
 ---
 
@@ -294,20 +294,50 @@ pnpm env-check          # 环境变量检查
 
 ## 11. 项目状态（不断更新）
 
-| 项 | 状态 |
+| 项 | 状态 | 备注 |
+|---|---|---|
+| Phase 0 初始化 | ✅ 完成（2026-07-14） | |
+| Phase 1 数据库 | ✅ 完成（2026-07-14） | Prisma 11 表 schema + migrate |
+| Phase 2 认证 | ✅ 完成（2026-07-14） | JWT + bcrypt + register/login/me |
+| Phase 3 AI 基础 | ✅ 完成（2026-07-14） | ai-router 3-tier + 并发限流 |
+| Phase 4 面试官 | ✅ 完成（2026-07-14） | 字节/阿里/腾讯/B站 4 家 + PII 7 类 |
+| Phase 5 评分 | ✅ 完成（2026-07-14） | DRY scorer + 4 公司权重 + 持久化 |
+| Phase 6 前端 | ✅ 完成（2026-07-14） | 5 页面 + SSE 流式 + a11y |
+| Phase 7 付费埋点 | ✅ 完成（2026-07-14） | 限流 + 埋点 + mock 支付 + admin |
+| Phase 8.1 E2E | ✅ 完成（2026-07-14） | Playwright 13/13 + 1 skipped |
+| Phase 8.2 P0 修复 | ✅ 完成（2026-07-14） | 4 BLOCK + 1 WARN 全修 |
+| Phase 8.3 生产构建 | ✅ 完成（2026-07-14） | 0 warnings / 17 routes / 烟雾测试全 200 |
+| Phase 8.3 EdgeOne 适配 | ✅ 完成（2026-07-14） | standalone + edgeone.json + 文档 |
+| Phase 8.4 复盘 | ⏳ 待开始 | 9 WARN 经验卡已固化 |
+
+### 当前质量基线
+
+| 项 | 数值 |
 |---|---|
-| Phase 0 初始化 | ✅ 完成（2026-07-14） |
-| Phase 1 数据库 | ⏳ 待开始 |
-| Phase 2 认证 | ⏳ 待开始 |
-| Phase 3 AI 基础 | ⏳ 待开始 |
-| Phase 4 面试官 | ⏳ 待开始 |
-| Phase 5 评分 | ⏳ 待开始 |
-| Phase 6 前端 | ⏳ 待开始 |
-| Phase 7 付费埋点 | ⏳ 待开始 |
-| Phase 8 上线 | ⏳ 待开始 |
+| `pnpm type-check` | 0 errors |
+| `pnpm build` | 0 warnings / 0 errors |
+| `pnpm test` (vitest) | 58/58 passed |
+| `pnpm test:e2e` (Playwright) | 13/13 passed + 1 skipped |
+| First Load JS（首页）| 87.4 kB |
+| 静态页面 | 6 个 (`/` `/login` `/register` `/interview/new` `/admin/models` `/_not-found`) |
+| 动态 API 路由 | 11 个 |
+| 知识卡 | patterns 5 + bugs 7 = 12 张 |
+
+### 部署就绪
+
+- 部署文档：[docs/PRODUCTION_DEPLOY.md](./docs/PRODUCTION_DEPLOY.md) (Vercel 备选)
+- **推荐部署**: [docs/EDGEONE_DEPLOY.md](./docs/EDGEONE_DEPLOY.md) (EdgeOne Pages 适配)
+- 数据库：腾讯云 PostgreSQL（云数据库 PostgreSQL 试用）
+- 适配配置：`next.config.js` (`output: 'standalone'`) + `edgeone.json` (buildRegion + functions)
+- 成本：¥0 试用 / ~¥50/月 正式
+- 国内延迟：< 50ms（vs Vercel 200-500ms）
 
 ---
 
 ## 12. 变更日志
 
+- **2026-07-14 — Phase 8.3**：生产构建 0 warning + EdgeOne Pages 适配（`output: standalone` + `edgeone.json` + SSE headers） + 部署文档（Vercel + EdgeOne 双方案） + 3 张经验卡固化（prod-chunk-bug + apicn-envelope-sse-a11y + edgeone-deploy-pattern）。prod + standalone 烟雾测试全 200。
+- **2026-07-14 — Phase 8.2**：14 Agent 并行审查 + P0 修复（security-x9 付费链路 / perf-x10 LLM 并发 / i18n-x13 API 中文 / a11y-x12 焦点+a11y / legal-x14 PII 扩展）。
+- **2026-07-14 — Phase 8.1**：Playwright E2E 13/13 + 1 skipped。
+- **2026-07-14 — Phase 0-7**：从 0 到 MVP 全栈（数据库 + 认证 + AI + 面试官 4 家 + 评分 + 前端 5 页面 + 限流 + 支付 + admin）。
 - **2026-07-14**：v0.1 首发。复利工程总纲首次固化。项目初始化完成。

@@ -1,0 +1,82 @@
+id: bug-2026-07-14-014
+title: Next.js prod build 残留 chunk 路径导致 500
+category: bug
+severity: high
+tags: [nextjs, prod-build, webpack, chunk, eaddrinuse]
+created_at: 2026-07-14
+project: interview-buddy
+
+problem: |
+  Phase 8.3 烟雾测试时遇到两个串联问题：
+
+  1. **EADDRINUSE 端口冲突** — 后台 dev server（Playwright config 启的）占用 3001，
+     `next start` 直接失败：`listen EADDRINUSE: address already in use :::3001`。
+     但 curl 测试仍返回 500 — 因为响应来自**还在跑的 dev server**，不是新启动的 prod server。
+
+  2. **Cannot find module './614.js'** — 杀掉旧进程、`pnpm start` 启动后，访问 `/` 和 `/register` 返回 500，
+     实际是 prod build 残缺：`webpack-runtime.js` 在 `.next/server/` 找 `./614.js`，但 `614.js` 存在
+     在 `.next/server/chunks/614.js`，路径层级不对。
+
+  根因：
+  - `.next/` 缓存被上次半完成的 build 污染
+  - 旧 dev/prod 进程未清理干净，端口被抢
+  - 烟雾测试**未先杀进程**就 curl，被误导
+
+solution: |
+  **强制顺序（任何 Phase 8 烟雾测试前必做）**：
+
+  ```bash
+  # 1. 杀光所有 next 进程（含 dev / start / server）
+  pkill -9 -f "next start" 2>/dev/null
+  pkill -9 -f "next dev" 2>/dev/null
+  pkill -9 -f "next-server" 2>/dev/null
+
+  # 2. 杀掉占端口的进程
+  lsof -ti:3001 2>/dev/null | xargs -r kill -9 2>/dev/null
+  lsof -ti:3100 2>/dev/null | xargs -r kill -9 2>/dev/null
+
+  # 3. 完全清 .next
+  rm -rf .next
+
+  # 4. 完整重建
+  pnpm build
+
+  # 5. 后台启动 prod（指定非冲突端口）
+  PORT=3100 NODE_ENV=production pnpm start &
+  sleep 4
+
+  # 6. 烟雾测试（先测一个再批量）
+  curl -sS -o /dev/null -w "%{http_code}" http://localhost:3100/
+  ```
+
+  **判断是真 prod server 还是旧 dev**：
+  ```bash
+  head -3 /tmp/next-prod.log
+  # 应显示 "▲ Next.js 14.2.35 / Local: http://localhost:3100"
+  # 如果是 "▲ Next.js ... Local: http://localhost:3001" → 启动的是 dev / 旧端口
+  ```
+
+  **避免端口冲突**：CI 用 `PORT=3100` 显式指定，绝不依赖 3000/3001。
+
+verification:
+  build: pnpm build → 0 warnings / 0 errors
+  smoke: 全 17 路由 200
+  api_i18n: errorResponse envelope 全中文（UNAUTHENTICATED="未登录"）
+  p0_alive: P0-1/2/3/4/5 修复全部存活
+
+learned_from:
+  - task: Phase 8.3 生产烟雾测试
+  - file: /tmp/next-prod.log (EADDRINUSE + Cannot find module './614.js')
+  - file: .next/server/webpack-runtime.js (chunk 路径错位)
+
+---
+
+# 教训
+
+**烟雾测试前永远先杀进程 + 清 .next** — 否则你测的根本不是 prod build，是被旧 dev 污染的 500。
+
+**prod 必须显式 `PORT=xxxx`** — Vercel 自动注入，Docker 必须显式 env，否则和 dev/Playwright 抢端口。
+
+**后台启动后 `head -3` 验证日志** — 而不是直接 curl，curl 可能命中错端口的旧进程。
+
+**`Cannot find module './XXX.js'` 99% 是 .next 缓存损坏** — 删了重建，永远不要尝试 patch webpack-runtime.js。
