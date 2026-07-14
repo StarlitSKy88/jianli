@@ -10,9 +10,24 @@
 
 @layer components {
   .btn-primary {
-    @apply px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition;
+    @apply px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-blue-400 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed transition;
   }
   .btn-secondary {
-    @apply px-4 py-2 bg-gray-100 text-gray-900 rounded-md hover:bg-gray-200 transition;
+    @apply px-4 py-2 bg-gray-100 text-gray-900 rounded-md hover:bg-gray-200
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-gray-400 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed transition;
+  }
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md
+           bg-white text-gray-900
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           disabled:bg-gray-100 disabled:cursor-not-allowed;
+  }
+  .card {
+    @apply bg-white rounded-lg shadow p-6;
   }
 }
