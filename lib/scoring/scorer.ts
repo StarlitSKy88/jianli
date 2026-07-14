@@ -2,11 +2,12 @@
  * 单维度评分 Agent — 4 家公司复用
  *
  * 流程：
- *   1. 构造评分 prompt（含维度 + 公司 + transcript）
- *   2. 调 aiChat（自动兜底）
- *   3. 解析 JSON → zod 校验
- *   4. PII 黑名单
- *   5. 失败 fallback：返回 score=60 + 通用 suggestions
+ *   1. 加载该公司该维度的评分 prompt（YAML front-matter + rubric body）
+ *   2. 拼装 transcript + role/level 上下文
+ *   3. 调 aiChat（自动兜底）
+ *   4. 解析 JSON → zod 校验
+ *   5. PII 黑名单
+ *   6. 失败 fallback：返回 score=60 + 通用 suggestions
  */
 import { aiChat } from '@/lib/ai/router';
 import {
@@ -15,6 +16,7 @@ import {
   type ScoreInput,
   type ScoreOutput,
 } from './dimensions';
+import { loadScorerPrompt } from './prompt-loader';
 
 const FALLBACK: ScoreOutput = {
   score: 60,
@@ -52,19 +54,19 @@ export async function scoreOne(input: ScoreInput): Promise<ScoreOutput> {
 }
 
 function buildScoringPrompt(input: ScoreInput): { system: string; user: string } {
-  const system = `你是 ${input.company.toUpperCase()} 面试场景下的"${input.dimension}"维度评分官。
-候选人岗位：${input.role}，职级：${input.level}。
+  const prompt = loadScorerPrompt(input.company, input.dimension);
+  const companyUpper = input.company.toUpperCase();
 
-## 评分标准（0-100）
-- 90-100: 远超岗位预期，有独到见解或深度
-- 75-89:  达到岗位要求，无明显短板
-- 60-74:  基本合格，有 1-2 个明显不足
-- 40-59:  有较大提升空间
-- 0-39:   与岗位不匹配
+  const system = `${prompt.body}
 
-## 严禁询问或输出
-- 婚否 / 子女 / 是否有房 / 年龄
-- 与岗位能力无关的 PII
+---
+
+## 当前任务上下文
+- 候选人岗位：${input.role}
+- 职级：${input.level}
+- 面试公司：${companyUpper}
+- 评分维度：${input.dimension}
+- 评分权重：${prompt.meta.weight}
 
 ## 输出严格 JSON（不要包裹代码块）
 {
