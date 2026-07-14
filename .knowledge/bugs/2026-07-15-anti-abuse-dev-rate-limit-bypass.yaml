@@ -1,0 +1,59 @@
+---
+id: bug-2026-07-15-003
+title: E2E 同 IP 触发限流 + dev 冷启动慢导致 UI 测试 hang
+category: bug
+severity: medium
+tags: [anti-abuse, playwright, e2e, rate-limit, dev-cold-start]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 10 集成蜜罐+IP 限流+Turnstile 三件套后，E2E 出现两类问题：
+
+  1) **同 IP 限流**：E2E 共享同一 webServer IP，多个测试连续触发 send-verify-code/register 触发 1/60s 或 3/5min 限流
+  2) **dev 冷启动慢**：Next.js dev 模式首次访问路由编译耗时 4+ 秒，原 E2E 用 `toBeDisabled()` 判断发码成功（5s 超时），但 fetch 实际未返回就被认为成功
+
+  错误现象：
+  - `auth-flow.spec.ts:50` UI 路径测试 → `expect(code).toMatch` failed (code=null)
+  - page snapshot 显示按钮卡在「发送中…」状态
+
+solution: |
+  双管齐下：
+
+  1) **anti-abuse.ts 加测试旁路**：dev 环境 + DISABLE_RATE_LIMIT=1 → 跳过 IP 限流
+  ```typescript
+  export function checkRateLimit(key, maxHits, windowMs) {
+    if (process.env.NODE_ENV !== 'production' && process.env.DISABLE_RATE_LIMIT === '1') {
+      return true;
+    }
+    // ...原有逻辑
+  }
+  ```
+
+  2) **playwright.config.ts 注入环境变量**：
+  ```typescript
+  env: { ..., DISABLE_RATE_LIMIT: '1' }
+  ```
+
+  3) **E2E 改用 waitForResponse 而非 disabled 状态判断**：
+  ```typescript
+  const sendResp = page.waitForResponse(
+    (r) => r.url().includes('/api/auth/send-verify-code') && r.request().method() === 'POST',
+    { timeout: 30_000 }
+  );
+  await page.click('button[aria-label="发送验证码"]');
+  expect((await sendResp).status()).toBe(200);
+  ```
+
+  4) **track.ts 扩展白名单**：honeypot 触发需 track → 加 4 个事件名
+     - `register_honeypot`、`verify_code_honeypot`
+     - `register_rate_limited`、`login_rate_limited`
+
+verification:
+  unit: 108/108 passed（含 23 anti-abuse 测试）
+  integration: 17/17 E2E + 1 skipped
+  e2e: 完整通过（含真实验证码链路 + UI 注册跳转 + cooldown + 蜜罐触发）
+
+learned_from:
+  - commit: Phase 10
+  - file: lib/auth/anti-abuse.ts + playwright.config.ts + tests/e2e/auth-flow.spec.ts

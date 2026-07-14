@@ -53,10 +53,14 @@ test.describe('Flow 1: 完整注册登录链路', () => {
     await page.goto('/register');
     await page.fill('input[type=email]', email);
 
-    // 触发发码
+    // 触发发码 + 等真实响应（dev 冷启动可能 4+ 秒）
+    const sendResp = page.waitForResponse(
+      (r) => r.url().includes('/api/auth/send-verify-code') && r.request().method() === 'POST',
+      { timeout: 30_000 }
+    );
     await page.click('button[aria-label="发送验证码"]');
-    // 等待按钮进入 cooldown（显示秒数）— 不依赖文案
-    await expect(page.locator('button[aria-label="发送验证码"]')).toBeDisabled({ timeout: 5_000 });
+    const sendOk = await sendResp;
+    expect(sendOk.status()).toBe(200);
 
     // 通过测试钩子拿码
     const code = await page.evaluate(async (e) => {
@@ -87,9 +91,14 @@ test.describe('Flow 1: 完整注册登录链路', () => {
     const email = `e2e-cd-${Date.now()}@jianli.app`;
     await page.goto('/register');
     await page.fill('input[type=email]', email);
+    const sendResp = page.waitForResponse(
+      (r) => r.url().includes('/api/auth/send-verify-code') && r.request().method() === 'POST',
+      { timeout: 30_000 }
+    );
     await page.click('button[aria-label="发送验证码"]');
+    await sendResp;
     // 立即进入 cooldown
-    await expect(page.locator('button[aria-label="发送验证码"]')).toBeDisabled({ timeout: 3_000 });
+    await expect(page.locator('button[aria-label="发送验证码"]')).toBeDisabled({ timeout: 5_000 });
   });
 });
 

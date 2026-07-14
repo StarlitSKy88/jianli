@@ -1,0 +1,76 @@
+---
+id: recipe-2026-07-15-001
+title: Turnstile React/Next.js 集成 + dev 旁路
+category: recipe
+severity: medium
+tags: [turnstile, react, nextjs, captcha, dev-bypass]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Cloudflare Turnstile 在 Next.js 14 App Router 下集成需要考虑：
+  - 'use client' 组件（不能在 server component 用 window）
+  - 脚本加载时序（widget 必须在 script onload 后 render）
+  - dev 环境无 secret/sitekey 时的优雅降级
+  - HMR / StrictMode 双调用导致重复 render
+
+solution: |
+  **1) 客户端组件**：`app/components/TurnstileWidget.tsx`
+
+  关键点：
+  - 用 **explicit render**（JS API）而非 `<div className="cf-turnstile">`，便于 cleanup
+  - onSuccess/onError/onExpire 用 ref 包裹，避免 useEffect 重跑
+  - 检查 `document.querySelector` 已有 script，避免重复加载
+  - siteKey 缺失时返回 null（不渲染），后端同步 dev 跳过验证
+
+  ```typescript
+  useEffect(() => {
+    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    if (!siteKey) return;
+    // ... load script + render
+    return () => {
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+      }
+    };
+  }, []);
+  ```
+
+  **2) Next.js env 命名**：
+  - 前端可见：`NEXT_PUBLIC_TURNSTILE_SITE_KEY`（必须 `NEXT_PUBLIC_` 前缀）
+  - 服务端 secret：`TURNSTILE_SECRET_KEY`（无前缀）
+
+  **3) 后端 dev 旁路**（lib/auth/anti-abuse.ts 已实现）：
+  ```typescript
+  if (!secret) {
+    if (process.env.NODE_ENV !== 'production') return { ok: true };
+    return { ok: false, errorCodes: ['missing-secret-key'] };
+  }
+  ```
+
+  **4) Widget Mode 选择**：
+  - **Managed**（推荐）：Cloudflare 自动决定何时显示挑战，体验最佳
+  - **Non-Interactive**：纯无感，永远不显示
+  - **Invisible**：完全不可见，依赖 JS challenge
+
+  **5) 部署 checklist**：
+  - [ ] Cloudflare 控制台创建 widget
+  - [ ] hostnames 加入 EdgeOne 域名 + localhost
+  - [ ] 拿 site_key + secret_key
+  - [ ] EdgeOne 控制台加 2 个 env var
+  - [ ] DISABLE_RATE_LIMIT=0（关 E2E 旁路）
+  - [ ] 重新部署 + 验证
+
+verification:
+  unit: 108/108 passed（widget 行为由 E2E 验证）
+  e2e: 17/17 passed + 1 skipped（dev 环境 widget 不渲染，后端跳过验证）
+  build: 0 warnings / login +0.5kB / register +1.3kB
+
+learned_from:
+  - commit: Phase 12
+  - file: app/components/TurnstileWidget.tsx + docs/EDGEONE_DEPLOY.md
+
+大陆访问说明: |
+  Turnstile 脚本在 challenges.cloudflare.com，大陆 1-3s 延迟。
+  若失败可加 fallback 文案「如验证未通过请刷新」。
+  备选：完全大陆方案可用极验 / 网易易盾，但收费。

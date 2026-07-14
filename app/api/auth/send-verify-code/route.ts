@@ -15,15 +15,48 @@ import { z } from 'zod';
 import { errorResponse, successResponse, validationErrorResponse } from '@/lib/auth/middleware';
 import { sendVerifyCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
+import {
+  isHoneypotTriggered,
+  checkRateLimit,
+  getClientIp,
+  verifyTurnstile,
+  RATE_LIMITS,
+} from '@/lib/auth/anti-abuse';
 
 const Body = z.object({
   email: z.string().email('邮箱格式无效'),
+  turnstileToken: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
   if (!parsed.success) return validationErrorResponse(parsed.error);
+
+  // 1) 蜜罐：命中则假装成功（不告诉机器人）
+  if (isHoneypotTriggered(json ?? {})) {
+    track(null, 'verify_code_honeypot', { ip });
+    return successResponse({ sent: true, cooldownSec: 60 });
+  }
+
+  // 2) IP 限流：同 IP 60 秒内只发 1 次
+  if (
+    !checkRateLimit(
+      `send-verify-code:${ip}`,
+      RATE_LIMITS.sendVerifyCode.maxHits,
+      RATE_LIMITS.sendVerifyCode.windowMs
+    )
+  ) {
+    return errorResponse('TOO_FREQUENT', '请求过于频繁，请稍后再试', 429);
+  }
+
+  // 3) Turnstile：dev 环境无 secret 时跳过
+  const ts = await verifyTurnstile(parsed.data.turnstileToken ?? '', ip);
+  if (!ts.ok) {
+    return errorResponse('TURNSTILE_FAILED', '人机验证失败，请刷新页面重试', 400);
+  }
 
   const result = await sendVerifyCode(parsed.data.email);
 

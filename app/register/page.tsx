@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { HoneypotFields } from '@/app/components/HoneypotFields';
+import { TurnstileWidget } from '@/app/components/TurnstileWidget';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -10,6 +12,9 @@ export default function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Turnstile token（每次发码 / 注册时由 widget 更新）
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
 
   // 验证码发送状态
   const [sendingCode, setSendingCode] = useState(false);
@@ -49,7 +54,7 @@ export default function RegisterPage() {
       const r = await fetch('/api/auth/send-verify-code', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -66,7 +71,7 @@ export default function RegisterPage() {
     }
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     if (!agreed) {
@@ -75,10 +80,21 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
+      const fd = new FormData(e.currentTarget);
+      // 蜜罐字段（包含在 FormData 中）
+      const body = {
+        email,
+        password,
+        verifyCode,
+        turnstileToken,
+        website: String(fd.get('website') ?? ''),
+        company_name: String(fd.get('company_name') ?? ''),
+        phone_number: String(fd.get('phone_number') ?? ''),
+      };
       const r = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password, verifyCode }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
@@ -88,7 +104,7 @@ export default function RegisterPage() {
       const lr = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, turnstileToken }),
       });
       if (lr.ok) router.push('/interview/new' as never);
       else router.push('/login' as never);
@@ -102,6 +118,7 @@ export default function RegisterPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-8">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4">
+        <HoneypotFields />
         <h1 className="text-3xl font-bold text-center">注册</h1>
         <div className="flex gap-2">
           <input
@@ -158,6 +175,7 @@ export default function RegisterPage() {
         <p id="register-verify-help" className="text-xs text-gray-400">
           点击「获取验证码」后，请查收邮箱
         </p>
+        <TurnstileWidget onSuccess={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
         <label className="flex items-start gap-2 text-sm text-gray-600">
           <input
             type="checkbox"

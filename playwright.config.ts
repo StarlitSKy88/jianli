@@ -25,6 +25,11 @@ export default defineConfig({
       NODE_ENV: 'development',
       // 继承调用进程的 DATABASE_URL（来自 .env.local，TiDB MySQL）
       DATABASE_URL: process.env.DATABASE_URL || '',
+      // E2E 跳过 IP 限流（同 IP 多 test 共享 webServer）
+      DISABLE_RATE_LIMIT: '1',
+      // E2E 清空 Turnstile（让后端走 dev 无-secret 旁路，否则真校验拒绝假 token）
+      TURNSTILE_SECRET_KEY: '',
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: '',
     },
   },
 });

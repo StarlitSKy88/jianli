@@ -313,6 +313,8 @@ pnpm env-check          # 环境变量检查
 | Phase 9.2 接入测试邮件 | ✅ 完成（2026-07-15） | send→cooldown→register→login→/me 端到端 10 步全通 |
 | Phase 9.3 评分 Prompt | ✅ 完成（2026-07-15） | 8 关键 + 6 兜底 = 14 YAML + loader + 16 测试 |
 | Phase 9.4 前端 E2E | ✅ 完成（2026-07-15） | 17/17 E2E（含真实验证码链路）+ test-helper 钩子 + Playwright PORT=3001 |
+| Phase 10 防刷号三件套 | ✅ 完成（2026-07-15） | 蜜罐 + IP 限流 + Turnstile（dev 旁路）+ 23 单测 + 17 E2E |
+| Phase 12 Turnstile 真实部署 | ✅ 完成（2026-07-15） | widget 0x4AAAAAAD168NRRcdDk1tma + 域名 localhost/jianli-p2nw5zbr.edgeone.cool/jianli.taomyst.top + curl 链路验证 + 部署脚本 |
 
 ### 当前质量基线
 
@@ -320,14 +322,15 @@ pnpm env-check          # 环境变量检查
 |---|---|
 | `pnpm type-check` | 0 errors |
 | `pnpm build` | 0 warnings / 0 errors |
-| `pnpm test` (vitest) | 85/85 passed |
+| `pnpm test` (vitest) | 108/108 passed |
+| `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
 | `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | First Load JS（首页）| 87.4 kB |
 | 静态页面 | 6 个 (`/` `/login` `/register` `/interview/new` `/admin/models` `/_not-found`) |
 | 动态 API 路由 | 11 个 |
-| 知识卡 | patterns 5 + bugs 8 = 13 张 |
+| 知识卡 | patterns 6 + bugs 10 + recipes 1 = 17 张 |
 
 ### 部署就绪
 

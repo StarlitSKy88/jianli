@@ -138,6 +138,53 @@
 | `ADMIN_EMAILS` | 管理员白名单 |
 | `REDIS_URL` | Redis（推荐 Upstash） |
 | `COMPOUND_ENABLED` | `true` |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile 前端 widget（**必须配**，否则不渲染） |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile 服务端校验（**必须配**，否则生产 500） |
+| `DISABLE_RATE_LIMIT` | `0`（生产禁用 E2E 旁路） |
+
+---
+
+### 🔵 Cloudflare Turnstile 配置（防刷号三件套之一）
+
+1. 注册 Cloudflare 账号：https://dash.cloudflare.com/sign-up
+2. 左侧菜单 → **Turnstile** → **Add widget**
+3. 配置：
+   - **Widget name**: `interview-buddy`
+   - **Hostnames**: 你的 EdgeOne 域名（如 `xxx.edgeone.app`）+ localhost
+   - **Widget Mode**: **Managed**（Cloudflare 自动决定何时显示挑战，最佳用户体验）
+4. 创建后拿到两个 Key：
+   - **Site Key** → 填到 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+   - **Secret Key** → 填到 `TURNSTILE_SECRET_KEY`
+5. EdgeOne 控制台 → 项目 → Settings → Environment Variables 添加上述两个变量
+6. 重新部署生效
+
+**大陆访问说明**：
+- Turnstile 脚本托管在 `challenges.cloudflare.com`，大陆访问可能 1-3s 延迟
+- 用户提交时会自动等待验证完成，**不影响功能**
+- 若大陆访问失败，可在 register/login 页加 fallback 提示「如验证未通过请刷新」
+
+**dev 环境**：两个 Key 都留空 → 后端自动跳过验证（`ok: true`），本地开发无感知
+
+### 🧪 部署后验证脚本
+
+`scripts/test-turnstile.sh` 一键验证：
+
+```bash
+SITE_KEY=0x4AAAAAAD168NRRcdDk1tma \
+SECRET_KEY=0x4AAAAAAD168FBMFRJnRytlIPmdGt6B5c0 \
+API_URL=https://jianli-p2nw5zbr.edgeone.cool \
+bash scripts/test-turnstile.sh
+```
+
+会检查：
+- ✓ Site Key / Secret Key 已设置
+- ✓ 假 token 被正确拒绝
+- ✓ Cloudflare 测试密钥工作
+- ✓ 应用 API 正确处理 token
+
+**真实域名（2026-07-15）**：
+- EdgeOne 默认域名：`jianli-p2nw5zbr.edgeone.cool`
+- 自定义域名：`jianli.taomyst.top`
 
 ---
 

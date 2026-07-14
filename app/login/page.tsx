@@ -1,27 +1,38 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { HoneypotFields } from '@/app/components/HoneypotFields';
+import { TurnstileWidget } from '@/app/components/TurnstileWidget';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
+      const fd = new FormData(e.currentTarget);
+      const body = {
+        email,
+        password,
+        turnstileToken,
+        website: String(fd.get('website') ?? ''),
+        company_name: String(fd.get('company_name') ?? ''),
+        phone_number: String(fd.get('phone_number') ?? ''),
+      };
       const r = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        // 中文 UI：优先显示后端中文 message（i18n-x13 P0）
         setError(d?.error?.message || '登录失败，请稍后重试');
         return;
       }
@@ -36,6 +47,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-8">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4">
+        <HoneypotFields />
         <h1 className="text-3xl font-bold text-center">登录</h1>
         <label htmlFor="login-email" className="sr-only">
           邮箱
@@ -72,6 +84,7 @@ export default function LoginPage() {
             {error}
           </p>
         )}
+        <TurnstileWidget onSuccess={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? '登录中…' : '登录'}
         </button>

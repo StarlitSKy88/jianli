@@ -1,0 +1,63 @@
+---
+id: pattern-2026-07-15-001
+title: 防刷号三件套（蜜罐 + IP 限流 + Turnstile）
+category: pattern
+severity: high
+tags: [anti-abuse, security, honeypot, rate-limit, turnstile, captcha]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  公开注册接口面临三类威胁：
+  - 脚本批量刷号（占用邮箱、耗资源）
+  - 撞库（用泄漏密码字典试登录）
+  - 高级机器人（绕过简单防护）
+
+solution: |
+  **三件套组合，每件解决不同威胁层级**：
+
+  ### 1) 蜜罐（Honeypot）
+  - 3 个字段名（website / company_name / phone_number），CSS 隐藏 + tabIndex=-1 + autoComplete=off + aria-hidden
+  - 真人不会填，机器人脚本会填
+  - 命中时**假装成功**（不告诉机器人被识破）
+  ```typescript
+  if (isHoneypotTriggered(body)) {
+    track(null, 'register_honeypot', { ip });
+    return successResponse({ userId: 'pending' }, 201); // 假装成功
+  }
+  ```
+
+  ### 2) IP 限流（In-memory Rate Limit）
+  - 内存 Map<key, { hits: number[] }>，时间窗口滑动
+  - 不同 endpoint 不同配置：
+    - `sendVerifyCode`: 1/60s（与验证码 cooldown 互补）
+    - `register`: 3/5min（防批量注册）
+    - `login`: 10/5min（防撞库）
+  - 每 5 分钟清理过期桶（unref timer 不阻塞退出）
+
+  ### 3) Turnstile（Cloudflare 无感 CAPTCHA）
+  - 前端 widget：`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>`
+  - 服务端 verify：`POST https://challenges.cloudflare.com/turnstile/v0/siteverify`
+  - dev 环境无 secret key → 跳过（避免阻断本地开发）
+  - 生产环境：**fail-closed**（secret 缺失 → 返回 500）
+
+  ### 设计原则
+  - **fail-closed**：检测到异常 → 拒绝
+  - **fast**：< 5ms，不阻塞主流程
+  - **server-side trust**：前端绕过无效
+
+verification:
+  unit: 23/23 anti-abuse tests passed
+  e2e: 17/17 E2E（含真实验证码链路）+ 1 skipped
+  prod_impact: 内存限流 → 多实例部署需换 Redis（按需升级）
+
+learned_from:
+  - commit: Phase 10
+  - file: lib/auth/anti-abuse.ts + 三个路由集成
+
+deployment_notes: |
+  生产部署时需在 EdgeOne / Vercel 环境变量加：
+  - TURNSTILE_SECRET_KEY=<your-secret>（Cloudflare 控制台拿）
+  - TURNSTILE_SITE_KEY=<your-site-key>（前端 widget 用）
+  - DISABLE_RATE_LIMIT=0（明确禁用旁路）
+  - 多实例：考虑 Redis 替代内存限流

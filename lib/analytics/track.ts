@@ -13,7 +13,11 @@ export type TrackEventName =
   | 'pay_click'
   | 'register_success'
   | 'register_fail'
-  | 'verify_code_request';
+  | 'verify_code_request'
+  | 'register_honeypot'
+  | 'verify_code_honeypot'
+  | 'register_rate_limited'
+  | 'login_rate_limited';
 
 const EVENT_WHITELIST: ReadonlySet<string> = new Set([
   'interview_start',

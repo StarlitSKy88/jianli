@@ -1,0 +1,70 @@
+---
+id: bug-2026-07-15-004
+title: Playwright webServer 复用 dev server 导致 E2E 假 token 被真 Turnstile 拒
+category: bug
+severity: medium
+tags: [playwright, e2e, turnstile, dev-server, env-leak]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 12 真实部署 Turnstile 后，.env.local 注入了真实 TURNSTILE_SECRET_KEY。
+  Playwright `webServer.reuseExistingServer: true` + `pnpm dev` (PORT=3001) 会
+  复用已经在跑的 dev server（dev server 启动时已 source .env.local）。
+
+  即使 playwright.config.ts 的 webServer.env 写了空字符串，Next.js 进程早已
+  加载真实 secret 到 process.env，无法覆盖。
+
+  结果：
+  - 5 个 E2E 失败（API 路径 + UI 路径 + 重发码 + 错误处理 2 个）
+  - 全部返回 TURNSTILE_FAILED
+  - 错误信息：dev 走了真实 siteverify，假 token 被拒
+
+solution: |
+  **必须**让 Playwright 启**新的 webServer**而不是复用：
+
+  ```typescript
+  // playwright.config.ts
+  webServer: {
+    command: 'PORT=3001 pnpm dev',
+    url: 'http://localhost:3001',
+    reuseExistingServer: !process.env.CI, // CI 不复用，本地可复用
+    env: {
+      NODE_ENV: 'development',
+      DATABASE_URL: process.env.DATABASE_URL || '',
+      DISABLE_RATE_LIMIT: '1',
+      // 关键：清空 Turnstile，让 dev 走"无 secret 跳过"旁路
+      TURNSTILE_SECRET_KEY: '',
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: '',
+    },
+  },
+  ```
+
+  或者：跑 E2E 前先 `lsof -i :3001 | xargs kill` 关掉 dev server。
+
+  **测试运行前**：
+  ```bash
+  # 1) 杀掉所有在 3000/3001 端口的 dev server
+  lsof -i :3001 -i :3000 2>&1 | grep LISTEN | awk '{print $2}' | xargs -r kill
+  # 2) 跑 E2E（Playwright 会启动新的 webServer 带空 secret）
+  pnpm exec playwright test
+  ```
+
+verification:
+  unit: 108/108 passed
+  e2e: 17/17 passed + 1 skipped（重启 webServer 后）
+  curl_turnstile: 假 token 被拒 ✓ + 测试密钥通过 ✓ + 应用 API 返回 400 ✓
+
+learned_from:
+  - commit: Phase 12
+  - file: playwright.config.ts
+
+前置知识:
+  - reuseExistingServer 的目的是节省 CI 时间，但 dev 时本地 debug 已启的 server
+    会带真实 env，覆盖无效
+  - Next.js dev server 启动时一次性加载 env，运行时改 process.env 无效
+
+real_deployments:
+  - Cloudflare Turnstile widget: 0x4AAAAAAD168NRRcdDk1tma (site) / 0x4AAAAAAD168FBMFRJnRytlIPmdGt6B5c0 (secret)
+  - Hostnames: localhost + jianli-p2nw5zbr.edgeone.cool + jianli.taomyst.top
+  - account: 20925250@qq.com

@@ -1,13 +1,14 @@
 /**
  * POST /api/auth/register
- * Body: { email, password, verifyCode }
+ * Body: { email, password, verifyCode, turnstileToken? }
  * Returns: 201 { ok: true, data: { userId } } | 4xx 错误
  *
  * 流程：
- *   1) 校验 verifyCode（10 分钟内有效，一次性消费）
- *   2) 已注册检查
- *   3) bcrypt hash 密码
- *   4) 写库
+ *   1) 防刷号三件套（蜜罐 + IP 限流 + Turnstile）
+ *   2) 校验 verifyCode（10 分钟内有效，一次性消费）
+ *   3) 已注册检查
+ *   4) bcrypt hash 密码
+ *   5) 写库
  */
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -16,21 +17,49 @@ import { hashPassword } from '@/lib/auth/password';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/auth/middleware';
 import { consumeVerifyCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
+import {
+  isHoneypotTriggered,
+  checkRateLimit,
+  getClientIp,
+  verifyTurnstile,
+  RATE_LIMITS,
+} from '@/lib/auth/anti-abuse';
 
 const Body = z.object({
   email: z.string().email('邮箱格式无效'),
   password: z.string().min(8, '密码至少 8 位').max(64),
   verifyCode: z.string().length(6, '验证码 6 位'),
+  turnstileToken: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
   if (!parsed.success) return validationErrorResponse(parsed.error);
 
+  // 1) 防刷号三件套
+  // 蜜罐：命中则假装成功（不告诉机器人）
+  if (isHoneypotTriggered(json ?? {})) {
+    track(null, 'register_honeypot', { ip });
+    return successResponse({ userId: 'pending', email: parsed.data.email }, 201);
+  }
+  // IP 限流：5 分钟内最多 3 次注册
+  if (
+    !checkRateLimit(`register:${ip}`, RATE_LIMITS.register.maxHits, RATE_LIMITS.register.windowMs)
+  ) {
+    return errorResponse('TOO_FREQUENT', '注册请求过于频繁，请稍后再试', 429);
+  }
+  // Turnstile：dev 环境无 secret 时跳过
+  const ts = await verifyTurnstile(parsed.data.turnstileToken ?? '', ip);
+  if (!ts.ok) {
+    return errorResponse('TURNSTILE_FAILED', '人机验证失败，请刷新页面重试', 400);
+  }
+
   const { email, password, verifyCode } = parsed.data;
 
-  // 1) 校验验证码（真实流程，不再有 dev bypass）
+  // 2) 校验验证码（真实流程，不再有 dev bypass）
   const verification = await consumeVerifyCode(email, verifyCode);
   if (!verification.ok) {
     track(null, 'register_fail', { reason: `verify_${verification.reason.toLowerCase()}` });
@@ -44,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 2) 已注册检查（防并发：pending user 也会匹配 email，所以要看 passwordHash 是否非空）
+  // 3) 已注册检查（防并发：pending user 也会匹配 email，所以要看 passwordHash 是否非空）
   const existing = await prisma.user.findUnique({
     where: { email },
     select: { id: true, emailVerified: true, passwordHash: true },
@@ -54,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
   // pending user 复用：直接覆盖 passwordHash（update 而不是 create）
 
-  // 3) hash + 创建/更新用户
+  // 4) hash + 创建/更新用户
   const passwordHash = await hashPassword(password);
   const user = existing
     ? await prisma.user.update({
