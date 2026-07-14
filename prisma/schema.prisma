@@ -1,0 +1,295 @@
+// 这是 interview-buddy 的 Prisma schema
+// 10 张表，详见 docs/TECHNICAL_DESIGN.md § 3
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 1. User — 用户表
+// ============================================
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  nickname       String?
+  avatarUrl      String?
+
+  // 用户画像
+  age            Int?
+  city           String?
+  currentRole    String?
+
+  // 状态
+  emailVerified  Boolean  @default(false)
+  verifyCode     String?
+  verifyExpiry   DateTime?
+
+  // 计费
+  freeQuotaUsed  Int      @default(0)
+  paidQuota      Int      @default(0)
+
+  // 时间戳
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastLoginAt    DateTime?
+
+  // 关系
+  resumes        Resume[]
+  interviews     Interview[]
+  payments       Payment[]
+  trackEvents    TrackEvent[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ============================================
+// 2. Resume — 简历表
+// ============================================
+model Resume {
+  id                String   @id @default(cuid())
+  userId            String
+  fileUrl           String?
+  fileHash          String   @unique
+  rawText           String
+  parsed            Json
+
+  // 关键字段
+  name              String?
+  currentCompany    String?
+  currentTitle      String?
+  yearsOfExperience Int?
+  city              String?
+  techStack         String[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interviews        Interview[]
+
+  @@index([userId, createdAt])
+  @@index([fileHash])
+  @@map("resumes")
+}
+
+// ============================================
+// 3. Scenario — 16 关配置表
+// ============================================
+model Scenario {
+  id                   String   @id @default(cuid())
+  company              String
+  role                 String
+  level                String
+  interviewerPrompt    String
+  scoringWeights       Json
+  difficultyPrompt     String
+  estimatedDurationMin Int      @default(20)
+  questionPoolSize     Int      @default(50)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  interviews           Interview[]
+
+  @@unique([company, role, level])
+  @@index([company, isActive])
+  @@map("scenarios")
+}
+
+// ============================================
+// 4. Interview — 面试记录
+// ============================================
+enum InterviewStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+  TIMEOUT
+}
+
+model Interview {
+  id           String          @id @default(cuid())
+  userId       String
+  resumeId     String
+  scenarioId   String
+
+  startedAt    DateTime        @default(now())
+  endedAt      DateTime?
+  durationSec  Int?
+
+  status       InterviewStatus @default(IN_PROGRESS)
+  isFreeQuota  Boolean         @default(true)
+  paymentId    String?
+
+  totalScore   Float?
+
+  user         User        @relation(fields: [userId], references: [id])
+  resume       Resume      @relation(fields: [resumeId], references: [id])
+  scenario     Scenario    @relation(fields: [scenarioId], references: [id])
+  messages     Message[]
+  report       Report?
+
+  @@index([userId, startedAt])
+  @@index([status])
+  @@map("interviews")
+}
+
+// ============================================
+// 5. Message — 问答历史
+// ============================================
+enum MessageRole {
+  USER
+  INTERVIEWER
+  SYSTEM
+}
+
+model Message {
+  id           String      @id @default(cuid())
+  interviewId  String
+  role         MessageRole
+  content      String
+  category     String?
+  difficulty   String?
+  latencyMs    Int?
+  createdAt    DateTime    @default(now())
+
+  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId, createdAt])
+  @@map("messages")
+}
+
+// ============================================
+// 6. Report — 评分报告
+// ============================================
+model Report {
+  id              String   @id @default(cuid())
+  interviewId     String   @unique
+  totalScore      Float
+  dimensionScores Json
+  improvements    Json
+  cohortRank      String?
+  cohortPercentile Float?
+  generatedAt     DateTime @default(now())
+
+  interview       Interview     @relation(fields: [interviewId], references: [id])
+  agentScores     AgentScore[]
+
+  @@map("reports")
+}
+
+// ============================================
+// 7. AgentScore — 多 Agent 评分明细
+// ============================================
+model AgentScore {
+  id              String   @id @default(cuid())
+  reportId        String
+  agentName       String
+  agentVersion    String
+  totalScore      Float
+  dimensionScores Json
+  reasoning       String
+  durationMs      Int
+  createdAt       DateTime @default(now())
+
+  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("agent_scores")
+}
+
+// ============================================
+// 8. Payment — 支付记录
+// ============================================
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  userId        String
+  amount        Int
+  currency      String        @default("CNY")
+  status        PaymentStatus @default(PENDING)
+  outTradeNo    String        @unique
+  transactionId String?
+  prepayId      String?
+  productType   String        @default("interview_quota")
+  quantity      Int           @default(1)
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("payments")
+}
+
+// ============================================
+// 9. RateLimit — 限流记录
+// ============================================
+model RateLimit {
+  id           String   @id @default(cuid())
+  userId       String
+  resourceType String
+  windowStart  DateTime
+  count        Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, resourceType, windowStart])
+  @@index([userId, resourceType])
+  @@map("rate_limits")
+}
+
+// ============================================
+// 10. TrackEvent — 轻量埋点
+// ============================================
+model TrackEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  eventName  String
+  properties Json
+  sessionId  String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([eventName, createdAt])
+  @@index([userId, createdAt])
+  @@map("track_events")
+}
+
+// ============================================
+// 11. CaseStory — 35+ 真人案例（DB 索引，详情在 YAML）
+// ============================================
+model CaseStory {
+  id           String   @id @default(cuid())
+  storyKey     String   @unique
+  yamlPath     String
+  company      String
+  role         String
+  level        String
+  title        String
+  age          Int
+  anonymized   Boolean  @default(true)
+  summary      String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([company, role, level])
+  @@map("case_stories")
+}

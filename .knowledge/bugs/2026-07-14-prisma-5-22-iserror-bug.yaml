@@ -1,0 +1,84 @@
+id: bug-2026-07-14-004
+title: Prisma 5.22+ 调用报 "(0, DSe.isError) is not a function"
+category: bug
+severity: critical
+tags: [prisma, cli, node-version, pnpm-build]
+created_at: 2026-07-14
+project: interview-buddy
+
+problem: |
+  安装 prisma@5.22.0 + @prisma/client@5.22.0 后：
+  - `pnpm prisma --version` 报错：
+    `[rtk: No such file or directory (os error 2)]`
+  - `pnpm prisma init` 报错：
+    `Error: (0 , DSe.isError) is not a function` 或 `(0 , CSe.isError) is not a function`
+  - `pnpm prisma migrate dev` 也报同样错误
+
+  双重问题：
+  1. pnpm 10 默认 ignore build scripts，
+     `@prisma/client`、`@prisma/engines`、`prisma` 的 postinstall
+     没跑，导致 query engine 二进制未解压。
+  2. 即使手动调 node + build/index.js，仍然报 DSe/CSe.isError not function
+     —— 这是 5.22 系列在 Node 22+ 上的 schema-engine WASM 加载 bug。
+
+  环境：macOS arm64 + Node v25.9.0 + pnpm 10.33.0
+
+solution: |
+  **必须做 2 件事**：
+
+  1. **降级到稳定的 Prisma 5.20.0**（5.22 有 schema engine bug）
+  ```bash
+  pnpm add prisma@5.20.0 @prisma/client@5.20.0
+  ```
+
+  2. **在 package.json 显式 allow build**，让 pnpm 跑 postinstall：
+  ```json
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ]
+  }
+  ```
+  然后 `pnpm install` 会自动跑引擎解压。
+
+  验证：
+  ```bash
+  # 1. 引擎已下载
+  ls node_modules/.pnpm/@prisma+engines@5.20.0/node_modules/@prisma/engines/
+  # 应看到 libquery_engine-darwin-arm64.dylib.node 等
+
+  # 2. CLI 可用
+  DATABASE_URL="..." node node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/build/index.js validate
+  # 应输出 "The schema at prisma/schema.prisma is valid 🚀"
+
+  # 3. 通过 alias 调用
+  alias pnpm-prisma='node node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/build/index.js'
+  pnpm-prisma migrate dev
+  ```
+
+  也可永久修复：
+  把 prisma:generate / prisma:migrate scripts 加 wrapper：
+  ```json
+  "prisma:migrate": "node node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/build/index.js migrate dev"
+  ```
+
+verification:
+  validate: prisma validate → "schema is valid 🚀"
+  engine_files: ls @prisma/engines → 看到 *.node/*.dylib 文件
+  install_path: node_modules/.pnpm/prisma@5.20.0/ 存在
+
+learned_from:
+  - task: Phase 1.1
+  - file: package.json + prisma/schema.prisma
+  - commit: (本次)
+
+related:
+  - https://www.npmjs.com/package/prisma (5.22 仍标注为 latest，但有 schema engine 已知问题)
+  - 5.20.0 是当前稳定 + 不踩坑的版本
+
+prevention:
+  - 包管理：lock 文件必须 commit（pnpm-lock.yaml）
+  - 升级策略：Prisma 跨 minor 升级前先看 changelog
+  - 双写保险：脚本不用 alias 形式，复制完整路径
