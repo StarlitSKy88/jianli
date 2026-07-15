@@ -4,11 +4,16 @@
 
 generator client {
   provider      = "prisma-client-js"
-  // Phase 14.6: 必须在 EdgeOne Pages 跑 prisma generate，否则会报
-  //   "Prisma Client could not locate the Query Engine for runtime rhel-openssl-1.1.x"
-  // EdgeOne Pages 是 Amazon Linux 2（rhel-openssl-3.0.x 在新版本镜像里），
-  // 我们同时输出 darwin（macOS dev）+ 两个 linux 引擎，覆盖 dev/EdgeOne/CI
-  binaryTargets = ["native", "darwin-arm64", "linux-musl-openssl-3.0.x", "rhel-openssl-3.0.x"]
+  // Phase 14.12 ROOT CAUSE 修复：
+  //   prod 报错 "rhel-openssl-1.1.x"，但 binaryTargets 里只有 3.0.x → 永远找不到
+  //   EdgeOne Pages 镜像 = Amazon Linux 2 + OpenSSL 1.1.1（不是 3.0）
+  //   之前 14.6/14.7/14.8 三个 fix 都在打错位置，因为底层 binaryTargets 本身就不对
+  // 覆盖矩阵：
+  //   - native + darwin-arm64: macOS dev / Vercel macOS build env
+  //   - linux-musl-openssl-3.0.x: Cloudflare Workers / Alpine 容器
+  //   - rhel-openssl-1.1.x: EdgeOne Pages / AWS Lambda / Amazon Linux 2（核心修复）
+  //   - rhel-openssl-3.0.x: AWS Lambda Node.js 18+ / Amazon Linux 2023 备用
+  binaryTargets = ["native", "darwin-arm64", "linux-musl-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
