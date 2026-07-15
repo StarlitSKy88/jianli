@@ -315,6 +315,10 @@ pnpm env-check          # 环境变量检查
 | Phase 9.4 前端 E2E | ✅ 完成（2026-07-15） | 17/17 E2E（含真实验证码链路）+ test-helper 钩子 + Playwright PORT=3001 |
 | Phase 10 防刷号三件套 | ✅ 完成（2026-07-15） | 蜜罐 + IP 限流 + Turnstile（dev 旁路）+ 23 单测 + 17 E2E |
 | Phase 12 Turnstile 真实部署 | ✅ 完成（2026-07-15） | widget 0x4AAAAAAD168NRRcdDk1tma + 域名 localhost/jianli-p2nw5zbr.edgeone.cool/jianli.taomyst.top + curl 链路验证 + 部署脚本 + **EdgeOne env 注入 + 自动重建触发** |
+| Phase 14 端到端验证 | ✅ 完成（2026-07-15） | 10 人并发 + 30 轮深度 + subagent 评审；P0-1~5 全部修复 + P0-6 新增（saveReport transaction timeout）+ P0-7 新增（mock provider 隔离 AI quota 耗尽）；mock provider 30/30 = 100% 业务成功率 |
+| Phase 14.5 mock 评分差异化 | ✅ 完成（2026-07-15） | Subagent 评审发现的 #142 P0：mock 之前 5 维度全 75 分（数据库验证 unique=1），现在按 system prompt 维度关键词返回差异化分数（8 维度 unique≥6）。新增 mock-dimension-scoring.test.ts（5/5 passed）+ 经验卡 009 |
+| Phase 13.8 Resume dedup P2002 race | ✅ 完成（2026-07-15） | #134 race condition 修复：schema 改为 (userId, fileHash) 复合唯一（migration 20260715130000_resume_per_user_dedup），race recovery 按 (userId, fileHash) 复合查询。tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed**（A 上传 → B 跨用户上传 → A 重复上传去重）。bug-006 已更新为完整 solution |
+| Phase 13.5 客服通道接入 | ✅ 完成（2026-07-15） | feedbacks 表（migration 20260715140000）+ FeedbackWidget 全局浮窗（app/components/FeedbackWidget.tsx，注入 layout）+ POST /api/feedback（防刷三件套 + 邮件通知）+ lib/email/feedback-notification（HTML escape + 截断） + docs/SUPPORT.md。13 单测全过（6 邮件 + 7 API），dev server 实地 POST 200 写 TiDB cuid 成功。128/128 vitest 全过 + 0 type errors + 0 new warnings |
 
 ### 当前质量基线
 
@@ -322,7 +326,7 @@ pnpm env-check          # 环境变量检查
 |---|---|
 | `pnpm type-check` | 0 errors |
 | `pnpm build` | 0 warnings / 0 errors |
-| `pnpm test` (vitest) | 108/108 passed |
+| `pnpm test` (vitest) | 128/128 passed |
 | `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
@@ -330,7 +334,11 @@ pnpm env-check          # 环境变量检查
 | First Load JS（首页）| 87.4 kB |
 | 静态页面 | 6 个 (`/` `/login` `/register` `/interview/new` `/admin/models` `/_not-found`) |
 | 动态 API 路由 | 11 个 |
-| 知识卡 | patterns 6 + bugs 10 + recipes 1 = 17 张 |
+| 知识卡 | patterns 7 + bugs 11 + recipes 1 = 19 张（含 pattern-2026-07-15 feedback-widget + bug-009 mock 评分差异化）|
+| Phase 14.4 mock 30 轮 | **30/30 = 100% 业务成功率**，8 维度评分入库 |
+| Phase 14.5 mock 维度差异化 | byte 5 维度评分 **unique ≥ 6**（修复前 = 1） |
+| mock 维度单测 | tests/unit/mock-dimension-scoring.test.ts **5/5 passed** |
+| Resume dedup race | tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed** |
 
 ### 部署就绪
 
@@ -350,3 +358,6 @@ pnpm env-check          # 环境变量检查
 - **2026-07-14 — Phase 8.1**：Playwright E2E 13/13 + 1 skipped。
 - **2026-07-14 — Phase 0-7**：从 0 到 MVP 全栈（数据库 + 认证 + AI + 面试官 4 家 + 评分 + 前端 5 页面 + 限流 + 支付 + admin）。
 - **2026-07-14**：v0.1 首发。复利工程总纲首次固化。项目初始化完成。
+- **2026-07-15 — Phase 14**：端到端验证全套（10 人并发 + 30 轮深度 + subagent 评审）。P0-1~5 修复全部生效：P0-1 测试脚本验证器改造（区分业务成功 vs HTTP 200）/ P0-2 滑动窗口（`messages.max(50)`→`max(100)` + 截断 40）/ P0-3 SSE `X-Biz-Status: pending` header + 结构化 STREAM_ERROR 日志 / P0-4 parseOutput throw 不再 fallback / P0-5 provider 空 content 检测（OpenRouter + 通用 OpenAI 基类）。**新增 mock provider**（`USE_MOCK_AI=1` 隔离真实 AI quota 耗尽）。**新增 P0-6**：saveReport `prisma.$transaction` 超时默认 5s 不够 8 维度评分写入，显式 30s。**Phase 14.4 mock 30 轮 = 30/30 = 100% 业务成功率**，评分报告 8 维度全部入库。Subagent 评审打分 8.0/10，发现 1 个 P0（mock 评分差异化）+ 4 个次要问题待 #142/#140 处理。
+- **2026-07-15 — Phase 13.8 Resume dedup race**：#134 race condition 修复完成。**根因（双重）**：(1) `Resume.fileHash @unique` 是全局唯一，不同 user 上传相同内容触发 P2002；(2) 即使 catch P2002 接住，race recovery 按 `(userId, fileHash)` 复合查 → miss → throw 500。**修复**：migration `20260715130000_resume_per_user_dedup` 删除 `resumes_fileHash_key` 全局唯一索引，新增 `(userId, fileHash)` 复合唯一索引 `userId_fileHash_unique`。race recovery 也按 `(userId, fileHash)` 复合查询。**验证**：tests/stress/phase-13-8-resume-dedup-race.sh（4/4 passed）+ TiDB migration 已应用 + 113/113 vitest + 0 type errors。**固化**：bug-006 更新为完整 solution + anti_pattern。
+- **2026-07-15 — Phase 14.5**：Subagent 评审 P0 #142 修复完成。**根因**：mock 之前所有评分维度调用 callCount 阈值切换模式，且固定返回 `{score: 75, ...}`，数据库验证 byte 5 维度 unique=1（algo=cs=project=sysdesign=culture=75）。**修复**：`extractDimensionFromSystem()` 正则提取 system prompt 中的 `评分维度：${dim}` 关键词，按 `Record<Dimension, MockScoreResponse>` 返回 8 个独立的人工撰写 score/evidence/suggestions（tech:82/project:78/sysdesign:72/algo:76/cs:80/culture:74/star:77/pressure:68）。**验证**：tests/unit/mock-dimension-scoring.test.ts（5/5 passed）+ 数据库 byte unique ≥ 6。**固化**：bug-009-mock-scoring-not-dimension-aware.yaml。

@@ -17,7 +17,9 @@ export type TrackEventName =
   | 'register_honeypot'
   | 'verify_code_honeypot'
   | 'register_rate_limited'
-  | 'login_rate_limited';
+  | 'login_rate_limited'
+  | 'feedback_honeypot'
+  | 'feedback_submit';
 
 const EVENT_WHITELIST: ReadonlySet<string> = new Set([
   'interview_start',

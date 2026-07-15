@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { FeedbackWidget } from '@/app/components/FeedbackWidget';
 
 export const metadata: Metadata = {
   title: 'Interview Buddy',
@@ -11,6 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN">
       <body>
         {children}
+        <FeedbackWidget />
         <footer
           style={{
             borderTop: '1px solid #e5e7eb',
@@ -29,6 +31,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             ·{' '}
             <a href="/legal/privacy" style={{ color: '#6b7280', textDecoration: 'underline' }}>
               隐私政策
+            </a>{' '}
+            ·{' '}
+            <a
+              href="mailto:support@taomyst.top"
+              style={{ color: '#6b7280', textDecoration: 'underline' }}
+            >
+              联系我们
             </a>
           </p>
           <p style={{ marginTop: '0.25rem' }}>

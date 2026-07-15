@@ -100,11 +100,12 @@ function ensureCleanup(): void {
   }
 }
 
-/** 默认配置：注册/发码 限流 */
+/** 默认配置：注册/发码/反馈 限流 */
 export const RATE_LIMITS = {
   register: { maxHits: 3, windowMs: 5 * 60_000 }, // 5 分钟内 3 次
   sendVerifyCode: { maxHits: 1, windowMs: 60_000 }, // 60s 内 1 次（与 verify-code 内部 cooldown 互补）
   login: { maxHits: 10, windowMs: 5 * 60_000 }, // 5 分钟内 10 次
+  feedback: { maxHits: 5, windowMs: 60 * 60_000 }, // 1 小时内 5 次（防灌水）
 } as const;
 
 // ============ 3) IP 提取 ============

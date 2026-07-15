@@ -45,6 +45,7 @@ model User {
   interviews  Interview[]
   payments    Payment[]
   trackEvents TrackEvent[]
+  feedbacks   Feedback[]
 
   @@index([email])
   @@map("users")
@@ -57,7 +58,7 @@ model Resume {
   id       String  @id @default(cuid())
   userId   String
   fileUrl  String?
-  fileHash String  @unique
+  fileHash String
   rawText  String  @db.Text
   parsed   Json
 
@@ -75,6 +76,11 @@ model Resume {
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   interviews Interview[]
 
+  // Phase 13.8 修复 #134：dedup 改为 (userId, fileHash) 复合唯一
+  // 之前 fileHash @unique 是全局唯一 → 不同 user 上传相同文件触发 P2002
+  // → 即使 race catch 重读，user B 也查不到自己的 dedup 记录（被 user A 占用）→ 500
+  // 改为 per-user 复合唯一：每个 user 独立 dedup，语义正确，race 恢复按 (userId, fileHash) 查
+  @@unique([userId, fileHash], name: "userId_fileHash_unique")
   @@index([userId, createdAt])
   @@index([fileHash])
   @@map("resumes")
@@ -279,4 +285,40 @@ model CaseStory {
 
   @@index([company, role, level])
   @@map("case_stories")
+}
+
+// ============================================
+// 12. Feedback — 客服通道 / 用户反馈（Phase 13.5）
+// ============================================
+// FeedbackCategory: BUG | UX | FEATURE | ACCOUNT | OTHER
+// FeedbackStatus:   PENDING | IN_PROGRESS | RESOLVED | SPAM
+// (MySQL 不支持 ENUM，用 String + 应用层校验)
+//
+// 设计目标：
+// - 匿名可用（userId nullable），已登录用户自动关联
+// - 联系方式 + 联系邮箱用于运营回复
+// - 同 IP / 邮箱 限流 + 蜜罐（复用 anti-abuse 三件套）
+// - 邮件通知 support@taomyst.top
+// - admin 角色可标记 resolved
+model Feedback {
+  id            String   @id @default(cuid())
+  userId        String?  // 匿名（null）/ 已登录用户（cuid）
+  category      String   // FeedbackCategory
+  content       String   @db.Text
+  contactEmail  String?  // 用户留的联系方式（可空）
+  userAgent     String?  @db.Text
+  ipAddress     String?  // 用户 IP（用于限流 + 反垃圾）
+  status        String   @default("PENDING") // FeedbackStatus
+  resolvedAt    DateTime?
+  resolvedBy    String?  // admin userId
+  adminNote     String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([userId, createdAt])
+  @@map("feedbacks")
 }

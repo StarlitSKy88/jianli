@@ -1,0 +1,99 @@
+id: pattern-2026-07-15
+title: 全站浮窗反馈组件（FeedbackWidget）+ 后端 /api/feedback 三件套闭环
+category: pattern
+severity: low
+tags: [feedback, support, widget, anti-abuse, email-notification, nextjs]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  初创 / 小团队 Web 应用常缺客服通道，导致用户反馈只能靠：
+  (a) 邮件直达（用户得知道地址 + 跳出站点）
+  (b) 表单提交新页面（打断阅读）
+  (c) 第三方客服（SaaS 成本高 + 数据外流）
+
+  但 MVP 阶段需要的只是"用户点点点 + 后台能查到 + 客服能回"。
+
+solution: |
+  自建轻量级客服通道：3 件事，前后端 + 邮件 = 1 个 PR
+
+  ### 1) 数据模型（feedbacks 表）
+  ```prisma
+  model Feedback {
+    id            String   @id @default(cuid())
+    userId        String?         // 匿名（null）/ 已登录用户
+    category      String          // BUG | UX | FEATURE | ACCOUNT | OTHER
+    content       String   @db.Text
+    contactEmail  String?
+    userAgent     String?  @db.Text
+    ipAddress     String?
+    status        String   @default("PENDING") // 运营后续标记
+    resolvedAt    DateTime?
+    resolvedBy    String?
+    adminNote     String?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    @@index([status, createdAt])
+    @@map("feedbacks")
+  }
+  ```
+  **关键决策**：userId nullable（匿名可用），单独 contactEmail（不一定用注册邮箱）。
+
+  ### 2) 前端浮窗组件（FeedbackWidget）
+  - **位置**：右下角悬浮按钮（fixed right/bottom 20px）
+  - **交互**：点按钮 → 抽屉式 modal（不跳转）→ 表单 → 提交 → ✅ toast 自动关闭
+  - **a11y**：role=dialog + aria-modal + ESC 关闭 + 背景锁滚动
+  - **复用蜜罐**：和 register 一致的 HoneypotFields 组件，机器人自动暴露
+  - **复用 Turnstile**：dev 旁路、生产才渲染（避免本地开发卡住）
+
+  ### 3) 后端 POST /api/feedback
+  ```ts
+  // 防刷三件套（与 register/login 同款）
+  1. 蜜罐命中 → 假装成功 200（不写库，运营无需处理）
+  2. IP 限流 5/h → 429
+  3. Turnstile → 400（dev 旁路）
+
+  // 写库 + 发邮件（不阻断主流程）
+  const fb = await prisma.feedback.create({ data: {...} });
+  await sendFeedbackNotification({...}); // 失败不影响
+  ```
+
+  ### 4) 邮件适配器（lib/email/feedback-notification.ts）
+  - 复用 `getEmailSender()`（Console / SES 双通道）
+  - **HTML escape 用户 content**（防 XSS through email）
+  - **截断超长 content**（防滥用邮件大小）
+
+  ### 5) 运营查询
+  - MVP 直接用 TiDB 控制台 SQL 查 `WHERE status='PENDING'`
+  - 后续可加 admin GET 接口分页列表
+
+verification:
+  vitest: |
+    lib/email/feedback-notification.test.ts 6/6
+    tests/unit/api/feedback/route.test.ts 7/7
+    全套 vitest 128/128
+  manual: |
+    - dev server curl POST → DB 写入 cuid → 邮件事件触发
+    - pnpm build → /api/feedback 已编译为 Dynamic route
+
+anti_pattern: |
+  ❌ 浮窗做成嵌套 iframe（SEO 不友好 + 跨域麻烦）
+  ❌ 把用户反馈直接存到第三方（Notion / Slack webhook）→ 数据外流 + 无法长期可审计
+  ❌ 表单不带蜜罐 → 一晚上被灌 1 万条
+  ❌ HTML 输出不 escape → 邮件客户端执行恶意 JS
+  ❌ 邮件发送失败 throw 异常 → 主流程崩，用户白提交
+  ❌ 强要求注册用户才能反馈 → 砍掉 80% 匿名反馈
+
+  ✅ 全局浮窗 + 后端三件套 + Console 邮件（MVP 阶段不烧钱）
+  ✅ 走现有 anti-abuse 通道（DRY）
+  ✅ 邮件发送失败兜底（主流程已写库）
+  ✅ ContactEmail 可选（不强迫注册）
+  ✅ 一张表 + 一个路由 + 一个组件 + 一个邮件 = < 500 LoC
+
+learned_from:
+  - date: Phase 13.5 (2026-07-15)
+  - file: app/components/FeedbackWidget.tsx
+  - file: app/api/feedback/route.ts
+  - file: lib/email/feedback-notification.ts
+  - file: lib/auth/anti-abuse.ts (RATE_LIMITS.feedback)
+  - file: prisma/migrations/20260715140000_feedback_support_channel/
