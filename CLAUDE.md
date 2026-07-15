@@ -319,6 +319,7 @@ pnpm env-check          # 环境变量检查
 | Phase 14.5 mock 评分差异化 | ✅ 完成（2026-07-15） | Subagent 评审发现的 #142 P0：mock 之前 5 维度全 75 分（数据库验证 unique=1），现在按 system prompt 维度关键词返回差异化分数（8 维度 unique≥6）。新增 mock-dimension-scoring.test.ts（5/5 passed）+ 经验卡 009 |
 | Phase 13.8 Resume dedup P2002 race | ✅ 完成（2026-07-15） | #134 race condition 修复：schema 改为 (userId, fileHash) 复合唯一（migration 20260715130000_resume_per_user_dedup），race recovery 按 (userId, fileHash) 复合查询。tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed**（A 上传 → B 跨用户上传 → A 重复上传去重）。bug-006 已更新为完整 solution |
 | Phase 13.5 客服通道接入 | ✅ 完成（2026-07-15） | feedbacks 表（migration 20260715140000）+ FeedbackWidget 全局浮窗（app/components/FeedbackWidget.tsx，注入 layout）+ POST /api/feedback（防刷三件套 + 邮件通知）+ lib/email/feedback-notification（HTML escape + 截断） + docs/SUPPORT.md。13 单测全过（6 邮件 + 7 API），dev server 实地 POST 200 写 TiDB cuid 成功。128/128 vitest 全过 + 0 type errors + 0 new warnings |
+| Sprint 1 上线 Gap 收尾 | ✅ 完成（2026-07-15） | 5 项任务全过：**G2 埋点对齐 PRD**（signup_complete/resume_uploaded/interview_started/interview_completed/payment_success；旧名 register_success/interview_start/interview_finish 全 rename + 19 事件白名单 + rate-limit-track 单测同步）+ **G9 Cookie 安全**（lib/auth/cookie.ts 抽出 setAuthCookie/clearAuthCookie）+ **G7 SEO**（app/sitemap.ts + app/robots.ts 约定生成 + layout metadataBase）+ **G3 SES 邮件**（lib/email/ses-sender.ts nodemailer + EMAIL_SENDER_MODE 切换 + 4 单测 + docs/EMAIL_SETUP.md + scripts/edgeone-inject-env.ts）。**Build**：132/132 vitest + 0 type errors + 0 lint warnings；routes 21→23（+sitemap.xml +robots.txt）；**MVP 状态**：5 Gap 修 4，G1 微信支付 + G4 admin 反馈页按决策延后 |
 
 ### 当前质量基线
 
@@ -326,19 +327,19 @@ pnpm env-check          # 环境变量检查
 |---|---|
 | `pnpm type-check` | 0 errors |
 | `pnpm build` | 0 warnings / 0 errors |
-| `pnpm test` (vitest) | 128/128 passed |
+| `pnpm test` (vitest) | 132/132 passed（Sprint 1 +4：ses-sender 4 个） |
 | `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
-| `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
-| First Load JS（首页）| 87.4 kB |
-| 静态页面 | 6 个 (`/` `/login` `/register` `/interview/new` `/admin/models` `/_not-found`) |
-| 动态 API 路由 | 11 个 |
-| 知识卡 | patterns 7 + bugs 11 + recipes 1 = 19 张（含 pattern-2026-07-15 feedback-widget + bug-009 mock 评分差异化）|
+| 静态页面 | 7 个（**+2**：/sitemap.xml /robots.txt 约定生成） |
+| 动态 API 路由 | 22 个（Login/Logout/Register/SendCode/Reset/VerifyCode/Feedback + Interview×3 + Payment×2 + Resume×2 + Admin×5 + Test×3）|
+| 知识卡 | patterns **10** + bugs 11 + recipes **2** = 23 张（Sprint 1 +4） |
+| First Load JS（首页）| 87.2 kB |
 | Phase 14.4 mock 30 轮 | **30/30 = 100% 业务成功率**，8 维度评分入库 |
 | Phase 14.5 mock 维度差异化 | byte 5 维度评分 **unique ≥ 6**（修复前 = 1） |
 | mock 维度单测 | tests/unit/mock-dimension-scoring.test.ts **5/5 passed** |
 | Resume dedup race | tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed** |
+| Sprint 1 上线 Gap | 5 项全过 ✅（G2 埋点 / G7 SEO / G9 Cookie / G3 SES）|
 
 ### 部署就绪
 

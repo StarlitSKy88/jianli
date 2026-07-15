@@ -1,23 +1,33 @@
 /**
  * Email 工厂 — 根据环境变量选择 EmailSender 实现
  *
- * 当前支持：
- * - console（默认，MVP 阶段）
+ * 决策：
+ * - EMAIL_SENDER_MODE=production  →  SesEmailSender（Tencent SES via SMTP）
+ * - 默认 / EMAIL_SENDER_MODE=console → ConsoleEmailSender（写 stdout，dev/test 用）
  *
- * 未来扩展：
- * - tencent-ses（生产环境，需要 SES_SECRET_ID/SES_SECRET_KEY）
+ * 这是单例：模块级 cache 避免每封邮件都做 env 检查
  */
 
 import { ConsoleEmailSender } from './console-sender';
+import { SesEmailSender } from './ses-sender';
 import type { EmailSender } from './types';
 
 let _sender: EmailSender | null = null;
 
 export function getEmailSender(): EmailSender {
   if (_sender) return _sender;
-  // 后续根据 process.env.EMAIL_PROVIDER 切换
-  _sender = new ConsoleEmailSender();
+  const mode = process.env.EMAIL_SENDER_MODE || 'console';
+  if (mode === 'production' || mode === 'ses') {
+    _sender = new SesEmailSender();
+  } else {
+    _sender = new ConsoleEmailSender();
+  }
   return _sender;
+}
+
+/** 测试辅助：清掉缓存的 sender（让单测可以切换模式） */
+export function __resetEmailSenderForTesting(): void {
+  _sender = null;
 }
 
 export type { EmailSender, EmailMessage, EmailSendResult } from './types';

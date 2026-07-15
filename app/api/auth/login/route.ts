@@ -11,6 +11,7 @@ import { prisma } from '@/lib/db/client';
 import { verifyPassword } from '@/lib/auth/password';
 import { signSession } from '@/lib/auth/session';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/auth/middleware';
+import { setAuthCookie } from '@/lib/auth/cookie';
 import { checkRateLimit, getClientIp, verifyTurnstile, RATE_LIMITS } from '@/lib/auth/anti-abuse';
 
 const Body = z.object({
@@ -56,14 +57,8 @@ export async function POST(req: NextRequest) {
     data: { lastLoginAt: new Date() },
   });
 
-  // 7. Set-Cookie
+  // 7. Set-Cookie（强制 httpOnly + sameSite=lax，生产 secure）
   const res = successResponse({ userId: user.id, email: user.email });
-  res.cookies.set('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  });
+  setAuthCookie(res, token);
   return res;
 }

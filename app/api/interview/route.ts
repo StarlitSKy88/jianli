@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, status: true, startedAt: true },
   });
 
-  track(session.userId, 'interview_start', {
+  track(session.userId, 'interview_started', {
     company: parsed.data.company,
     role: parsed.data.role,
     level: parsed.data.level,

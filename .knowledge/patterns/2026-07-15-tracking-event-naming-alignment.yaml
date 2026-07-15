@@ -1,0 +1,48 @@
+id: pattern-2026-07-15-tracking-event-naming-alignment
+title: 埋点事件命名必须先对齐 PRD，再写代码（single source of truth）
+category: pattern
+severity: medium
+tags: [tracking, prd, naming, single-source-of-truth, funnel]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  PRD § 9 规定 5 个核心埋点：
+    signup_complete / resume_uploaded / interview_started / interview_completed / payment_success
+  但代码里却用 register_success / interview_start / interview_finish / pay_click 等同义但不同的名字。
+  问题暴露：
+  - funnel 计算时表里全是 register_success，PRD 校验 5 个全埋好 → 永远对不上
+  - 想换 dashboard 公式，还得 grep + 改一堆 track() 调用
+  - 新人贡献者看 PRD 写代码，commit 进来全是新名字（事件名爆炸）
+
+solution: |
+  1. 5 个核心事件名以 PRD 为唯一真理源（spec 名 = 代码名）
+     - TrackEventName union 里把 PRD 列出的 5 个作为顶层 + 加注释
+     - 旧名（register_success / interview_finish 等）作为别名通过 ESLint 报错 / 禁
+  2. type-level 强约束：TrackEventName union 加上后，所有 track() 调用必须命中白名单
+     - 'A new event requires union update + whitelist update + grep test fixtures'
+  3. CI 验证：vitest 必须有 1 个测试断言"5 个核心事件都已启用"
+  4. 文档同步：docs/PRD.md § 9 是 source of truth；TrackEventName 顶部加注释指向它
+
+  具体 diff 摘要（2026-07-15 sprint 1）：
+    - lib/analytics/track.ts：5 个核心事件 + 14 个次级事件 = 19 个白名单
+    - app/api/auth/register/route.ts:108 → register_success → signup_complete
+    - app/api/interview/route.ts:67 → interview_start → interview_started
+    - app/api/interview/[id]/message/route.ts:177 → interview_finish → interview_completed
+    - app/api/resume/upload/route.ts（新增）→ resume_uploaded 在 DB create 后触发
+    - app/api/payment/route.ts:48 → pay_click 保留（按钮点击 = 漏斗顶端，与 payment_success 区分）
+
+verification:
+  unit: tests/unit/rate-limit-track.test.ts:107 'writes event to DB' (1 case updated)
+  type_check: 0 errors
+  build: 0 warnings
+  e2e: (后续补 feedback-flow + payment-success E2E)
+
+learned_from:
+  - commit: 待 sprint 1 commit
+  - file: lib/analytics/track.ts
+
+anti_pattern:
+  - "PR 进来就 commit 事件名，没人校对。事件名应在 PRD 阶段固定"
+  - "alias 两套名字都 trigger —— 增加表基数 + dashboard 维护成本"
+  - "在新功能里临时加事件，但忘了加进 union → TS 报错才发现"

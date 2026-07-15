@@ -1,0 +1,72 @@
+id: recipe-2026-07-15-tencent-ses-smtp-nodemailer
+title: Tencent Cloud 邮件推送（SES via SMTP）+ nodemailer
+category: recipe
+severity: medium
+tags: [email, ses, smtp, nodemailer, edgeone, tencent-cloud, deploy]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  MVP 阶段 console 邮件够用，生产必须切到 Tencent SES（合规 + 用户真收信）
+  - 不知道 SMTP 凭据怎么拿
+  - 不知道哪个端口（465 vs 587）+ secure 怎么设
+  - 不知道 EdgeOne Pages 怎么注入 env
+  - 想对接又怕改完发不出
+
+solution: |
+  1. Tencent SES 控制台：
+     - 开通服务 → 创建发件域名（SPF/DKIM/DMARC DNS 记录）
+     - 创建发件地址 → SMTP 标签页拿 host / port / user
+     - 生成 SMTP 专用密码（不是登录密码）
+     - 常用连接：gz-smtp.qcloudmail.com:465（广州）/ sh-...:465（上海）
+
+  2. 代码层（lib/email/ses-sender.ts）：
+     ```ts
+     import nodemailer from 'nodemailer';
+     const transporter = nodemailer.createTransport({
+       host: process.env.SMTP_HOST,
+       port: Number(process.env.SMTP_PORT),
+       secure: port === 465,           // 465=SSL；587=STARTTLS
+       auth: { user, pass: password },
+       connectionTimeout: 10_000,
+       socketTimeout: 15_000,
+     });
+     ```
+     send() 包 try/catch → 返回 { ok: false, error } 不 throw（主流程不阻断）
+
+  3. 工厂切换（lib/email/index.ts）：
+     ```ts
+     if (process.env.EMAIL_SENDER_MODE === 'production') {
+       _sender = new SesEmailSender();   // 优先级最高的 env
+     } else {
+       _sender = new ConsoleEmailSender();
+     }
+     ```
+
+  4. EdgeOne Pages env 注入：
+     - 控制台手动：Pages → 项目 → 环境变量 → 6 个 key
+     - 注意：EdgeOne 改 env 后会自动触发重建（约 2-3 分钟）
+       （详见 bug-2026-07-15-005 edgeone-env-no-auto-redeploy.yaml 的修正版行为）
+     - SMTP_PASSWORD 标记为 Secret
+
+  5. 单测模式：
+     - vi.mock('nodemailer') 拦截 createTransport
+     - vi.hoisted 拿到 mock 引用（工厂 hoist 限制）
+     - 测 4 路径：env 缺 → 失败 + sendMail 抛错 → 失败 + 成功 → messageId + port=465 → secure=true
+
+verification:
+  unit: lib/email/ses-sender.test.ts (4 tests)
+  integration: dev server + 真 SES → 收信
+  smoke_prod: 部署后 1 小时 curl /api/auth/send-verify-code
+
+learned_from:
+  - file: lib/email/ses-sender.ts
+  - file: lib/email/index.ts
+  - doc: docs/EMAIL_SETUP.md
+
+gotchas:
+  - "secure 默认按 port 推断，但可以显式 SMTP_SECURE=true/false 强制"
+  - "SMTP 密码 ≠ 控制台登录密码，必须在 SES 控制台 SMTP 标签下单独生成"
+  - "DNS SPF/DKIM 配完后要 10-30 分钟才生效，期间进垃圾箱"
+  - "node 版本要求 ≥ 18（nodemailer 要求）"
+  - "EdgeOne Pages env 改了不会立即生效，要等自动重建"

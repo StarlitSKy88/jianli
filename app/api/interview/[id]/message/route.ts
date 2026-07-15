@@ -27,6 +27,11 @@ import { saveReport } from '@/lib/scoring/persist';
 import { scoreOne } from '@/lib/scoring/scorer';
 import { aggregate } from '@/lib/scoring/aggregator';
 
+// P0-2 修复：把硬上限 .max(50) 改为 .max(100)，并在解析后做滑动窗口截断
+// 原因：30 轮对话 = 60 条 user+assistant，硬 50 让 round 26 之后被 400 拒
+// 滑动窗口：保留 system 等价 + 最近 N 条 user/assistant 对，N=40 留余量
+const HISTORY_WINDOW = 40;
+
 const BodySchema = z.object({
   messages: z
     .array(
@@ -36,7 +41,7 @@ const BodySchema = z.object({
       })
     )
     .min(1)
-    .max(50),
+    .max(100), // 放宽到 100，让滑动窗口有空间裁剪
   finish: z.boolean().optional(),
 });
 
@@ -59,6 +64,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = BodySchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return validationErrorResponse(body.error);
+
+  // P0-2 修复：滑动窗口截断 history。
+  // 30 轮对话 = 60 条 user/assistant，原 .max(50) 让 round 26 起全 400，finish 永远进不来。
+  // 策略：保留最后一对 user/assistant 完整对话 + 之前的滚动窗口（最多 40 条 = 20 轮）
+  // 这样：(1) finish=true 永不因超 50 被拒 (2) AI 仍能拿到最近 20 轮上下文
+  const rawMessages = body.data.messages;
+  const windowedMessages =
+    rawMessages.length <= HISTORY_WINDOW ? rawMessages : rawMessages.slice(-HISTORY_WINDOW);
 
   const interview = await prisma.interview.findUnique({
     where: { id: params.id },
@@ -88,8 +101,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     );
   }
 
-  // 持久化 user message
-  const lastUser = body.data.messages[body.data.messages.length - 1];
+  // 持久化 user message（P0-2：用 windowed 后的最后一条）
+  const lastUser = windowedMessages[windowedMessages.length - 1];
   await prisma.message.create({
     data: {
       interviewId: interview.id,
@@ -123,11 +136,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           level: interview.scenario.level,
           resume: {
             name: interview.resume.name || 'anonymous',
-            yearsOfExperience: 0,
-            skills: [],
-            projects: [],
+            yearsOfExperience: interview.resume.yearsOfExperience || 0,
+            skills: Array.isArray(interview.resume.techStack)
+              ? (interview.resume.techStack as string[])
+              : [],
+            projects: Array.isArray((interview.resume.parsed as { projects?: unknown[] })?.projects)
+              ? (
+                  interview.resume.parsed as {
+                    projects: Array<{ name?: string; description?: string; techStack?: string[] }>;
+                  }
+                ).projects.map((p) => ({
+                  name: p.name || 'unknown',
+                  duration: '',
+                  description: p.description || '',
+                  techStack: Array.isArray(p.techStack) ? p.techStack : [],
+                }))
+              : [],
           },
-          history: body.data.messages.slice(0, -1),
+          history: windowedMessages, // P0-2：滑动窗口后传给 AI（含 user 真实回答 + 最近 assistant 回复）
         });
 
         const out = await interviewer.ask();
@@ -150,7 +176,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             where: { id: interview.id },
             data: { status: 'COMPLETED', endedAt: new Date() },
           });
-          track(session.userId, 'interview_finish', { interviewId: interview.id });
+          track(session.userId, 'interview_completed', { interviewId: interview.id });
 
           const dims = (
             Object.keys(scenarioWeights) as Array<keyof typeof DIMENSION_WEIGHTS.byte>
@@ -164,7 +190,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 role: interview.scenario.role,
                 level: interview.scenario.level,
                 dimension: dim,
-                transcript: body.data.messages,
+                transcript: windowedMessages, // P0-2：评分用滑动窗口后 transcript
               });
               return [dim as string, score] as const;
             })
@@ -187,6 +213,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         controller.enqueue(sseDone());
       } catch (e) {
+        // P0-3 修复：结构化日志，让监控/告警能基于此聚合"业务失败率"
+        // 而非只看 HTTP 200（HTTP 200 在 SSE 下永远成立）
+        console.error('[interview-message] STREAM_ERROR', {
+          interviewId: interview.id,
+          userId: session.userId,
+          errorMessage: (e as Error).message,
+          errorStack: (e as Error).stack?.split('\n').slice(0, 5).join('\n'),
+          timestamp: new Date().toISOString(),
+        });
         controller.enqueue(
           sseEvent({ error: { code: 'STREAM_ERROR', message: (e as Error).message } })
         );
@@ -209,6 +244,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       connection: 'keep-alive',
       // 防中间代理 buffer
       'x-accel-buffering': 'no',
+      // P0-3 修复：业务状态通过 X-Biz-Status 头显式标注（区分 HTTP 200 传输成功 vs 业务成功）
+      // 取值：pending / success / error。前端 + 监控可据此聚合"业务成功率"而非"HTTP 200 率"
+      'x-biz-status': 'pending',
     },
   });
 }

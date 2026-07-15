@@ -1,0 +1,50 @@
+id: pattern-2026-07-15-nextjs-app-router-sitemap-robots
+title: Next.js 14 App Router sitemap.ts / robots.ts 约定式生成
+category: pattern
+severity: low
+tags: [seo, nextjs, sitemap, robots, app-router, conventions]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  上线 SEO 第一步：sitemap + robots，但 Next.js 项目里如果手写 public/sitemap.xml
+  - 路径 hardcode、不动态
+  - 改路由还得手动改 XML
+  - robots.txt 同理 → 手动编辑 public/robots.txt 容易与 app router 路由不一致
+  - 想禁用 /admin 或 /api 让蜘蛛别爬 → 直接 Disallow 写出错的路径
+
+solution: |
+  Next.js 14 App Router 约定式：
+    - app/sitemap.ts     → 导出 default 函数，返回 MetadataRoute.Sitemap
+    - app/robots.ts      → 导出 default 函数，返回 MetadataRoute.Robots
+    - Next.js 自动生成 /sitemap.xml 和 /robots.txt
+
+  baseUrl 严格用 NEXT_PUBLIC_APP_URL（环境变量注入，不允许从请求拼 → 防 SSRF）
+
+  排除策略：
+    - Disallow: /api/*（API 不需要蜘蛛爬）
+    - Disallow: /admin/*（管理后台无需索引）
+    - Disallow: /interview/[id]/*（高基数动态 URL，sitemap 1 万条也覆盖不完）
+
+  metadataBase 加在 app/layout.tsx 的 metadata，便于后续 metadata 拼出绝对路径。
+
+  配合 layout.tsx：
+    metadataBase: new URL(BASE_URL)
+    robots: { index: true, follow: true, googleBot: ... }
+    openGraph: { ... }
+    alternates: { canonical: BASE_URL }
+
+verification:
+  build: build 输出包含 /robots.txt + /sitemap.xml（自动生成）
+  e2e: curl /sitemap.xml 返回 200 + XML 含 / register / interview/new
+  prod_smoke: 部署后 Search Console 提交 sitemap 验证
+
+learned_from:
+  - commit: 待 sprint 1 commit
+  - file: app/sitemap.ts, app/robots.ts
+
+anti_pattern:
+  - "在 public/sitemap.xml 手写 → 与 Next.js 路由树不一致"
+  - "robots 写死 /api 不 Disallow → Google 爬所有 endpoint"
+  - "baseUrl 从 request.headers.host 拼 → SSRF + 跨域污染"
+  - "把动态高基数 URL（/interview/[id]）放进 sitemap → sitemap 1M 条"

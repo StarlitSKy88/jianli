@@ -2,9 +2,44 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { FeedbackWidget } from '@/app/components/FeedbackWidget';
 
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://jianli.taomyst.top';
+
 export const metadata: Metadata = {
-  title: 'Interview Buddy',
-  description: 'AI 面试陪练 - 35+ 群体的真实面试模拟',
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: 'Interview Buddy - AI 面试陪练',
+    template: '%s | Interview Buddy',
+  },
+  description: '35+ 群体的 AI 面试陪练 — 字节/阿里/腾讯/B站 16 关真实模拟，每日 3 次免费',
+  keywords: [
+    'AI 面试',
+    '面试陪练',
+    '35+ 求职',
+    '模拟面试',
+    '面试评估',
+    '字节',
+    '阿里',
+    '腾讯',
+    'B站',
+  ],
+  authors: [{ name: 'Interview Buddy' }],
+  creator: 'Interview Buddy',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large' },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'zh_CN',
+    url: BASE_URL,
+    title: 'Interview Buddy - AI 面试陪练',
+    description: '35+ 群体的 AI 面试陪练 — 16 关真实模拟 + 8 维度评分报告',
+    siteName: 'Interview Buddy',
+  },
+  alternates: {
+    canonical: BASE_URL,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

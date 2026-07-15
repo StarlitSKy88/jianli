@@ -1,0 +1,44 @@
+id: pattern-2026-07-15-auth-cookie-helper-pattern
+title: 共享 Cookie 工具：lib/auth/cookie.ts（OWASP A07 hardening）
+category: pattern
+severity: medium
+tags: [cookie, security, auth, owasp-a07, csrf-prevention, single-source-of-truth]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  JWT cookie 在 3 个路由（login / logout / reset）直接调用 `res.cookies.set`：
+  - httpOnly / secure / sameSite 在每个路由手写一遍，参数可能不一致
+  - 未来要加 __Host- 前缀（防 subdomain 攻击）或 partitioned（防第三方上下文）
+    需要 grep 找全部 set 调用 — 漏一处就出现"两条路径属性不一致"
+  - logout 用 `cookies.delete('token')` 偶尔与 set 时的 path 不匹配留下 stale cookie
+
+solution: |
+  抽出 `lib/auth/cookie.ts`：
+    - AUTH_COOKIE_NAME 常量
+    - AUTH_COOKIE_MAX_AGE_SECONDS 常量
+    - setAuthCookie(res, token, opts?)
+    - clearAuthCookie(res) — 用 maxAge=0 + 同样的 path=/ + 同样的 sameSite/secure
+    - deleteAuthCookie(res) — 给需要 ResponseCookies.delete 的场景备用
+
+  所有路由（login / logout / reset）只调用这两个函数 → 集中改属性一处生效。
+
+  安全属性（OWASP A07:2021）：
+    - httpOnly: true   — 防 XSS 窃 token
+    - secure: NODE_ENV=production 时 true
+    - sameSite: 'lax'  — 顶层导航带 cookie，跨站 POST 不带 → 防 CSRF
+    - path: '/'         — 与 logout 删 cookie 的 path 必须一致
+
+verification:
+  unit: (待补：vitest 验证 setAuthCookie 在 dev/production 的 secure 字段真假)
+  integration: 手动登录 → curl --cookie-jar → set-cookie 应含 HttpOnly / SameSite=Lax
+  build: 0 warnings
+
+learned_from:
+  - commit: 待 sprint 1 commit
+  - file: lib/auth/cookie.ts
+
+anti_pattern:
+  - "在 5 个路由都写 res.cookies.set('token', ..., {httpOnly, secure, sameSite})"
+  - "logout 用 delete 不带 path：留下 stale cookie，下次带旧 token 访问被服务端 reject 但客户端不知"
+  - "用 maxAge 而忘了 secure：dev 跑通就以为生产也对"

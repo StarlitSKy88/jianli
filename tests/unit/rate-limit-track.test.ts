@@ -106,13 +106,13 @@ describe('rate-limit — paid quota', () => {
 
 describe('track', () => {
   it('writes event to DB (fire-and-forget)', async () => {
-    track('u1', 'interview_start', { company: 'byte' });
+    track('u1', 'interview_started', { company: 'byte' });
     // 异步写库，等一个微任务
     await new Promise((r) => setTimeout(r, 10));
     expect(mockPrisma.trackEvent.create).toHaveBeenCalledWith({
       data: {
         userId: 'u1',
-        eventName: 'interview_start',
+        eventName: 'interview_started',
         properties: { company: 'byte' },
       },
     });

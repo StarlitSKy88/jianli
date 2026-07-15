@@ -62,3 +62,8 @@ blob-report/
 
 # Code graph index
 .codegraph/
+
+# Debug / scratch directories (Sprint 1 hygiene)
+.dbg*/
+.env.local.backup
+.env.local.bak

@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         select: { id: true, email: true },
       });
 
-  track(user.id, 'register_success', { email: email.replace(/(.{2}).*(@.*)/, '$1***$2') });
+  track(user.id, 'signup_complete', { email: email.replace(/(.{2}).*(@.*)/, '$1***$2') });
 
   return successResponse({ userId: user.id, email: user.email }, 201);
 }
