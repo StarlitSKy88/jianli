@@ -16,9 +16,10 @@ import type {
 import { getMinimaxProvider } from './providers/minimax';
 import { getClaudeProvider } from './providers/claude';
 import { getDeepSeekProvider } from './providers/deepseek';
+import { getOpenRouterProvider } from './providers/openrouter';
 import { withLLMSlot } from './concurrency';
 
-export type ProviderName = 'minimax' | 'claude' | 'deepseek';
+export type ProviderName = 'minimax' | 'claude' | 'deepseek' | 'openrouter';
 
 interface RouteEntry {
   name: ProviderName;
@@ -27,6 +28,7 @@ interface RouteEntry {
 
 const PROVIDERS: RouteEntry[] = [
   { name: 'minimax', factory: getMinimaxProvider },
+  { name: 'openrouter', factory: getOpenRouterProvider },
   { name: 'claude', factory: getClaudeProvider },
   { name: 'deepseek', factory: getDeepSeekProvider },
 ];
