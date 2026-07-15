@@ -58,7 +58,21 @@ export async function POST(req: NextRequest) {
     return errorResponse('TURNSTILE_FAILED', '人机验证失败，请刷新页面重试', 400);
   }
 
-  const result = await sendVerifyCode(parsed.data.email);
+  // 顶层 try/catch — 把真凶 message 暴露到 response body（debug 用）
+  // Phase 13.9.1: production 反复 500 无 body，加这一层捕获以定位根因
+  let result: Awaited<ReturnType<typeof sendVerifyCode>>;
+  try {
+    result = await sendVerifyCode(parsed.data.email);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error(`[send-verify-code] throw for ${parsed.data.email}: ${msg}`);
+    return errorResponse(
+      'SEND_FAILED',
+      `验证码发送失败: ${msg.slice(0, 200)} | 检查: ① TiDB 连通 ② Prisma schema 同步 ③ EMAIL_SENDER_MODE 与 SMTP_* 注入`,
+      500
+    );
+  }
 
   // 追踪埋点（用于分析转化漏斗）
   track(null, 'verify_code_request', {
