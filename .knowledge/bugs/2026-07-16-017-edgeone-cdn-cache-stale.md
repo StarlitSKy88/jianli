@@ -45,6 +45,22 @@ EdgeOne 控制台 → 项目 → 缓存管理 / 缓存配置 / 刷新缓存 / Pu
 
 任一缺失都会让 prod 看似"修了"但实际跑老代码。
 
+## 附：EdgeOne Date header 系统时钟 bug
+
+观察到的诡异现象：
+- `curl -I jianli.taomyst.top` → `Date: Wed, 15 Jul 2026 19:36 GMT`（昨天/今天早上）
+- 同时 `Last-Modified: Wed, 15 Jul 2026 19:02:11 GMT`（与 sitemap lastmod 19:01:44 一致，是今天的 build）
+- 业务响应正确（curl send-verify-code → 400 TURNSTILE_FAILED）
+
+**结论**：EdgeOne Pages 的 `Date` HTTP header 字段似乎有显示 bug，不会随真实时间更新。
+不影响 `Last-Modified`（这是文件实际修改时间）和业务逻辑，但会误导诊断。
+
+**如何判断 prod 是否真的更新**：
+- ✅ `Last-Modified` 时间应该是新 build 时间（≈ git log 时间）
+- ✅ `curl send-verify-code` 应该返回 400/200/429（不是 500）
+- ✅ `Eo-Pages-Inner-Scf-Status` header 反映 SSR 真实行为
+- ❌ 不要看 `Date` header（EdgeOne 系统时钟 bug）
+
 ## 部署后必查（v2 checklist）
 
 ```bash
