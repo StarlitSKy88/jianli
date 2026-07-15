@@ -223,7 +223,15 @@ pnpm prisma studio  # 浏览器看 11 张表是否齐全
 
 ### 6.2 后续部署
 
-- 推送到 `main` 分支 → EdgeOne 自动构建 + 部署
+- 推送到 `main` 分支 → EdgeOne **默认不自动 rebuild**
+- **必须手动**去 EdgeOne 控制台 → 项目 → 部署 → 点"重新部署"按钮
+- ⚠️ **2026-07-16 bug-016**：曾误以为 git push 后 EdgeOne 自动部署，结果 6 小时后
+  prod 仍是旧代码，所有 prisma 修复都白搭。**部署后必查 sitemap.xml lastmod**：
+  ```bash
+  curl -sS https://your-domain/sitemap.xml | grep lastmod | head -1
+  # lastmod 应 ≈ git log 最新 commit 时间（±30 分钟）
+  # 如果 lastmod 早于最新 commit → EdgeOne 没自动 deploy → 手动触发
+  ```
 - PR → 自动生成 Preview URL
 
 ---
