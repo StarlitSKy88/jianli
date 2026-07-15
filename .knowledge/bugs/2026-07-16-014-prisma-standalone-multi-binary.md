@@ -4,6 +4,7 @@
 **严重度**: critical
 **项目**: interview-buddy
 **前置卡片**: bug-013 (Prisma binaryTargets)
+**后续卡片**: bug-015 (EdgeOne Pages cloudFunctions 必须显式声明)
 
 ## 现象
 
