@@ -3,7 +3,12 @@
 // Provider: 兼容 PostgreSQL / MySQL（生产用 TiDB MySQL）
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Phase 14.6: 必须在 EdgeOne Pages 跑 prisma generate，否则会报
+  //   "Prisma Client could not locate the Query Engine for runtime rhel-openssl-1.1.x"
+  // EdgeOne Pages 是 Amazon Linux 2（rhel-openssl-3.0.x 在新版本镜像里），
+  // 我们同时输出 darwin（macOS dev）+ 两个 linux 引擎，覆盖 dev/EdgeOne/CI
+  binaryTargets = ["native", "darwin-arm64", "linux-musl-openssl-3.0.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
