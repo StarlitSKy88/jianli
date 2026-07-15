@@ -1,0 +1,125 @@
+id: bug-013
+title: EdgeOne Pages 部署 Prisma "could not locate Query Engine for runtime rhel-openssl-1.1.x"
+category: bug
+severity: critical
+tags: [prisma, edgeone-pages, serverless, binaryTargets, mysql, tidb, deploy]
+created_at: 2026-07-16
+project: interview-buddy
+
+problem: |
+  生产部署到 EdgeOne Pages 后，访问 /api/auth/send-verify-code 返回 HTTP 500。
+
+  EdgeOne 控制台日志显示：
+    "Prisma Client could not locate the Query Engine for runtime \"rhel-openssl-1.1.x\""
+    "This usually happens when the Prisma Client was generated for a different
+     platform or architecture than the runtime it is being used in."
+
+  根因：
+  - Prisma schema.prisma 的 generator client 块没设 binaryTargets，
+    默认只生成 native engine binary（即开发机 darwin-arm64）。
+  - EdgeOne Pages 是 Amazon Linux 2 容器，runtime 需要 rhel-openssl-1.1.x
+    或 rhel-openssl-3.0.x engine binary。
+  - 本地 dev (`pnpm dev`) 跑得通是因为 native binary 兼容本地 OS；
+    EdgeOne 上跑就找不到匹配 binary → throw 500。
+
+  复现链路（prod 调试）：
+  1. push master → EdgeOne 自动 rebuild (~2 min)
+  2. 用户访问 jianli.taomyst.top/register
+  3. 提交"获取验证码" → POST /api/auth/send-verify-code
+  4. route 调 `sendVerifyCode(email)` → 内部 `prisma.user.findUnique()` → throw
+  5. 顶层 try/catch 把 message 暴露到 response body
+  6. 用户看到 500 + "验证码发送失败: Invalid `prisma.user.findUnique()` invocation:
+     Prisma Client could not locate the Query Engine for runtime \"rhel-openssl-1.1.x\"..."
+
+  本地 pnpm test 132/132 通过 = false positive，因为本地有 native binary。
+
+solution: |
+  在 prisma/schema.prisma 的 generator client 块加 binaryTargets，覆盖
+  dev (native + darwin) + EdgeOne (linux 两个变体) + CI：
+
+    generator client {
+      provider      = "prisma-client-js"
+      binaryTargets = [
+        "native",                # 默认（开发机本地 OS）
+        "darwin-arm64",          # macOS M1/M2 dev 显式
+        "linux-musl-openssl-3.0.x", # 通用 musl 容器（CI/Docker alpine）
+        "rhel-openssl-3.0.x"     # EdgeOne Pages（Amazon Linux 2 / rhel 系）
+      ]
+    }
+
+  注意：
+  - "native" 会按当前 OS 自动选（开发机跑 pnpm prisma generate 时）
+  - 部署到 EdgeOne 后，build 阶段也会跑 prisma generate，
+    "rhel-openssl-3.0.x" binary 会同时打进 .next/standalone 或 node_modules
+  - 不能用 "rhel-openssl-1.1.x"（Prisma 5.x 已弃用对应 binary target，
+    实际环境是 3.0.x，但错误信息可能报 1.1.x 因为 OpenSSL compat shim）
+
+  部署后验证：
+  1. pnpm prisma generate → 看到 3 个 engine binary 生成：
+       node_modules/.prisma/client/libquery_engine-darwin-arm64.dylib.node
+       node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
+       node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node
+  2. pnpm type-check → 0 errors
+  3. pnpm test → 132/132 passed（防止 schema 改动破坏现有测试）
+  4. commit + push → 等 EdgeOne rebuild
+  5. 用户浏览器重测 → 应能进收件箱
+
+  **根本原则**：Prisma schema 的 binaryTargets 必须在 schema.prisma 里
+  静态声明（不是环境变量），并且必须覆盖**所有**部署目标的 runtime，
+  否则 dev pass + prod 500 的 false positive 会反复出现。
+
+verification:
+  schema_fix:
+    - prisma/schema.prisma 加 binaryTargets（4 个 target）
+    - pnpm prisma generate → 3 engine binary 生成（darwin + linux-musl + rhel）
+  unit:
+    - pnpm type-check: 0 errors
+    - pnpm test (vitest): 132/132 passed
+  deploy:
+    - commit aa374f3 push 到 master
+    - EdgeOne Pages 自动 rebuild（~2-3 分钟）
+    - 用户浏览器重测验证码（待验证：进入 qq.com 收件箱）
+
+learned_from:
+  - commit: aa374f3
+  - file: prisma/schema.prisma
+  - file: app/api/auth/send-verify-code/route.ts  # 顶层 try/catch 是定位真凶的关键
+
+related:
+  - bug-005 (EdgeOne env 注入不自动重启 — 同样在 EdgeOne 部署链路踩坑)
+  - bug-006 (Resume dedup P2002 race — 同样是 schema 必须有正确的 index 才能跑)
+
+anti_pattern: |
+  ❌ 不要在 prisma/schema.prisma 留空的 binaryTargets（默认只 native）
+  ❌ 不要只加 "rhel-openssl-3.0.x" 而不加 "native"（本地 dev 会 fail）
+  ❌ 不要靠 .env 配置 binaryTargets（这是 schema 静态属性，不是运行时配置）
+  ❌ 不要以为 pnpm test pass = 部署也会 pass（测试在 native runtime 跑）
+
+  ✅ binaryTargets 至少包含 ["native", "rhel-openssl-3.0.x"] 两项
+  ✅ 推荐 4 项：native + darwin-arm64 + linux-musl-openssl-3.0.x + rhel-openssl-3.0.x
+  ✅ schema 改动后跑 pnpm prisma generate 验证 binary 文件数
+  ✅ 任何 EdgeOne 部署 → smoke test 关键 API（含数据库 IO）
+
+debugging_trace: |
+  完整调查链（生产 500 → 根因）：
+  1. 用户截图：jianli.taomyst.top/register 报"发送失败"
+  2. 用户报告浏览器 console 错误（FrameDoesNotExist + send-verify-code 500）
+  3. 用户提供 EdgeOne 控制台 env 截图（5 个 SMTP env 已填）
+  4. 用户提供 /api/auth/send-verify-code 500 响应 body：
+     "验证码发送失败: Invalid `prisma.user.findUnique()` invocation:
+      Prisma Client could not locate the Query Engine for runtime \"rhel-openssl-1.1.x\"..."
+  5. 蕾姆 grep "Prisma Client could not locate" 命中 Prisma 文档 →
+     "binaryTargets 不覆盖目标 runtime"
+  6. 蕾姆检查 schema.prisma → binaryTargets 缺失
+  7. 蕾姆加 4 个 target → pnpm prisma generate → 验证 3 个 binary
+  8. pnpm test 132/132 → commit aa374f3 → push → 等 EdgeOne rebuild
+
+  关键工具：send-verify-code 顶层 try/catch 是定位真凶的唯一通道，
+  没有它 prod 500 = 黑洞，只能去 EdgeOne 控制台 log streaming 翻。
+  **强烈建议所有 DB-IO 路由都加这个 try/catch 模式**。
+
+deploy_lesson: |
+  EdgeOne Pages 部署 3 件必做：
+  1. prisma schema 必须 binaryTargets 覆盖 rhel-openssl-3.0.x
+  2. 所有 DB-IO API 路由必须顶层 try/catch + 把 message 暴露到 body（debug 模式）
+  3. 任何环境变量注入后，等 2-3 分钟 EdgeOne rebuild + 用户浏览器 hard reload
