@@ -1,0 +1,48 @@
+id: bug-2026-07-15-006
+title: Resume 上传在 dedup 检查 race condition 时返回 500（P2002）
+category: bug
+severity: high
+tags: [prisma, p2002, race-condition, resume, upload, dedup]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  /api/resume/upload 在两次上传相同内容文件时，第二次返回 500 而非去重成功。
+  dev log 报错：Prisma P2002 unique constraint violation on `resumes_fileHash_key`。
+
+  原因分析：
+  - upload 路由先做 hash 检查 → 没找到 → create → P2002
+  - race condition：第一次请求还没提交，第二次请求 hash 检查也 miss，然后两个 create 都尝试插入相同 fileHash
+  - 即使没有并发，单线程内如果 dedup 查询时机不对也会触发
+
+  复现：连续两次 curl 上传同 hash 文件，第二次 500。
+
+solution: |
+  修法 1（生产环境）：用 prisma upsert 替代 create + dedup 查询
+  ```typescript
+  const existing = await prisma.resume.findFirst({ where: { fileHash } });
+  if (existing) return successResponse({ resume: existing, deduplicated: true });
+  // ...
+  await prisma.resume.create({ data: { ... } });  // ← 这里 race condition
+  ```
+  → 改为：
+  ```typescript
+  await prisma.resume.upsert({
+    where: { fileHash_userId: { fileHash, userId } },  // 需要复合唯一键
+    create: { ... },
+    update: {},  // 不更新
+  });
+  ```
+  → 或者用 try/catch 捕获 P2002，再 fallback 读取已存在记录。
+
+  修法 2（应急）：去掉 fileHash 唯一键，只保留 (userId, fileHash) 索引
+
+  当前状态：未修复。压测脚本已用唯一 hash 内容绕过。
+
+verification:
+  manual: 连续两次 curl 上传同 hash 文件 → 第二次 500（待修复）
+  stress: stress script 用 mktemp 每次生成唯一内容绕过（22/22 通过）
+
+learned_from:
+  - file: app/api/resume/upload/route.ts
+  - commit: 待修复

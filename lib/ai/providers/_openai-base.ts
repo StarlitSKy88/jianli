@@ -1,7 +1,7 @@
 /**
- * OpenAI 兼容 Provider 通用基类
+ * OpenAI 兼容 Provider 通用基类（minimax / DeepSeek 用）
  *
- * minimax / Claude (via proxy) / DeepSeek 都用这个模式
+ * OpenRouter 单独走 openrouter.ts（用 fetch，避免 OpenAI SDK union type 问题）
  */
 import OpenAI from 'openai';
 import type { AiProvider, ChatMessage, ChatOptions, ChatResult, StreamChunk } from './types';
