@@ -314,7 +314,7 @@ pnpm env-check          # 环境变量检查
 | Phase 9.3 评分 Prompt | ✅ 完成（2026-07-15） | 8 关键 + 6 兜底 = 14 YAML + loader + 16 测试 |
 | Phase 9.4 前端 E2E | ✅ 完成（2026-07-15） | 17/17 E2E（含真实验证码链路）+ test-helper 钩子 + Playwright PORT=3001 |
 | Phase 10 防刷号三件套 | ✅ 完成（2026-07-15） | 蜜罐 + IP 限流 + Turnstile（dev 旁路）+ 23 单测 + 17 E2E |
-| Phase 12 Turnstile 真实部署 | ✅ 完成（2026-07-15） | widget 0x4AAAAAAD168NRRcdDk1tma + 域名 localhost/jianli-p2nw5zbr.edgeone.cool/jianli.taomyst.top + curl 链路验证 + 部署脚本 |
+| Phase 12 Turnstile 真实部署 | ✅ 完成（2026-07-15） | widget 0x4AAAAAAD168NRRcdDk1tma + 域名 localhost/jianli-p2nw5zbr.edgeone.cool/jianli.taomyst.top + curl 链路验证 + 部署脚本 + **EdgeOne env 注入 + 自动重建触发** |
 
 ### 当前质量基线
 

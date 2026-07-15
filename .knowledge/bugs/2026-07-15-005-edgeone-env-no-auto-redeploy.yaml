@@ -1,0 +1,59 @@
+id: bug-2026-07-15-005
+title: EdgeOne Pages 环境变量变更不自动触发重建
+category: bug
+severity: high
+tags: [edgeone, deploy, env, turnstile, regression]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 12 Turnstile 真实部署完成后：
+  - git push commit 6a08308 → EdgeOne Pages 自动部署成功（Last-Modified 19:22:33 GMT）
+  - 但 EdgeOne 控制台「环境变量」页面**之前没有注入** Turnstile keys
+  - 注册页蜜罐 + TurnstileWidget 组件代码已部署，浏览器却看不到 Turnstile 渲染
+
+  根因（**双层陷阱**）：
+  1. EdgeOne Pages 控制台更新 env vars 后，**不会自动重建**
+  2. 控制台顶部灰字明确说「环境变量的变更将在下一次部署时生效」
+
+  → 即使 env 注入正确，没有触发重建 = env 没生效 = widget 永远不渲染
+
+solution: |
+  修复路径（推荐 A，自动触发重建）：
+
+  **方案 A: git push 无害小 commit 触发 webhook**
+  ```bash
+  # 在 docs/EDGEONE_DEPLOY.md 加 env 警告脚注
+  # 在 CLAUDE.md Phase 12 行加 ✅ env 注入完成
+  git add docs/EDGEONE_DEPLOY.md CLAUDE.md
+  git commit -m "chore(docs): env 变更说明 + 触发 EdgeOne 重建"
+  git push origin master
+  # EdgeOne webhook 自动捕获 → ~1-3min 重建 → 注入 env
+  ```
+
+  **方案 B: EdgeOne 控制台手动重建**
+  - EdgeOne 控制台 → 项目详情 → 「部署」标签页
+  - 找到最新部署 → 点「重新部署」
+  - 优点：不产生多余 commit
+  - 缺点：手动操作
+
+  **预防**（下次部署前先检查）：
+  - EdgeOne Pages 部署检查清单（template）:
+    - [ ] 检查环境变量：DATABASE_URL / JWT_SECRET / NODE_ENV / AI keys
+    - [ ] 检查 Turnstile keys：NEXT_PUBLIC_TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY
+    - [ ] 推送代码后等待 Last-Modified 时间戳更新
+
+verification:
+  unit: 不适用（环境变量修复）
+  integration: 不适用
+  e2e: Playwright 抓 https://jianli.taomyst.top/register 等待 widget iframe 出现
+
+learned_from:
+  - commit: 6a08308 (Phase 12 真实部署)
+  - file: docs/EDGEONE_DEPLOY.md
+  - file: app/components/TurnstileWidget.tsx (setEnabled 在 useEffect 内执行)
+
+related:
+  - type: bug
+    id: bug-2026-07-15-004-e2e-turnstile-key-leak
+    why: "E2E env leak 是测试侧类似教训，本卡是部署侧"

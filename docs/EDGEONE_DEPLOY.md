@@ -165,6 +165,8 @@
 
 **dev 环境**：两个 Key 都留空 → 后端自动跳过验证（`ok: true`），本地开发无感知
 
+> **⚠️ 环境变量变更生效条件**：EdgeOne Pages 在「环境变量」页面更新值后，**不会自动触发重建**。需要「重新部署」/ 推送新 commit 后才生效。tokenless + secretless 两种状态都可能导致 widget 不渲染或后端 500。
+
 ### 🧪 部署后验证脚本
 
 `scripts/test-turnstile.sh` 一键验证：
