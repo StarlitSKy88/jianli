@@ -55,7 +55,11 @@ export async function POST(req: NextRequest) {
   // 3) Turnstile：dev 环境无 secret 时跳过
   const ts = await verifyTurnstile(parsed.data.turnstileToken ?? '', ip);
   if (!ts.ok) {
-    return errorResponse('TURNSTILE_FAILED', '人机验证失败，请刷新页面重试', 400);
+    return errorResponse(
+      'TURNSTILE_FAILED',
+      `人机验证失败: ${ts.errorCodes?.join(',') ?? 'unknown'}（token ${parsed.data.turnstileToken ? parsed.data.turnstileToken.slice(0, 8) + '...' : 'EMPTY'}）`,
+      400
+    );
   }
 
   // 顶层 try/catch — 把真凶 message 暴露到 response body（debug 用）

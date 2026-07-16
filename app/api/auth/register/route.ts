@@ -54,7 +54,13 @@ export async function POST(req: NextRequest) {
   // Turnstile：dev 环境无 secret 时跳过
   const ts = await verifyTurnstile(parsed.data.turnstileToken ?? '', ip);
   if (!ts.ok) {
-    return errorResponse('TURNSTILE_FAILED', '人机验证失败，请刷新页面重试', 400);
+    // 暴露真凶 errorCodes 到响应，辅助调试 Cloudflare token 拒绝原因
+    // (生产环境保留，但只在错误时显示，不泄露给前端正常使用)
+    return errorResponse(
+      'TURNSTILE_FAILED',
+      `人机验证失败: ${ts.errorCodes?.join(',') ?? 'unknown'}（token ${parsed.data.turnstileToken ? parsed.data.turnstileToken.slice(0, 8) + '...' : 'EMPTY'}）`,
+      400
+    );
   }
 
   const { email, password, verifyCode } = parsed.data;
