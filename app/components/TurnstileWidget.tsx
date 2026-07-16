@@ -7,12 +7,13 @@
  * - 用 explicit render（更可控，cleanup 干净）
  * - onSuccess(token) 把 token 传给父组件
  * - onError / onExpire 让父组件清空 token
+ * - 通过 ref 暴露 reset()：解决 Phase 14.27 token 复用问题
  *
  * 设计：
  * - dev 环境 NEXT_PUBLIC_TURNSTILE_SITE_KEY 缺失 → 不渲染（生产 backend 会跳过验证）
  * - 卸载时 remove(widgetId) + remove(script)，防止 HMR 多实例泄漏
  */
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 declare global {
   interface Window {
@@ -31,78 +32,94 @@ export interface TurnstileWidgetProps {
   className?: string;
 }
 
+export interface TurnstileWidgetHandle {
+  /** 强制 widget 重渲染并生成新 token（每次 send-code 后调用） */
+  reset: () => void;
+}
+
 const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
 
-export function TurnstileWidget({ onSuccess, onError, onExpire, className }: TurnstileWidgetProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const widgetIdRef = useRef<string | null>(null);
-  const onSuccessRef = useRef(onSuccess);
-  const onErrorRef = useRef(onError);
-  const onExpireRef = useRef(onExpire);
-  const [enabled, setEnabled] = useState(false);
+export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
+  function TurnstileWidget({ onSuccess, onError, onExpire, className }, ref) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const widgetIdRef = useRef<string | null>(null);
+    const onSuccessRef = useRef(onSuccess);
+    const onErrorRef = useRef(onError);
+    const onExpireRef = useRef(onExpire);
+    const [enabled, setEnabled] = useState(false);
 
-  // 保持 ref 最新，避免 useEffect 重跑
-  useEffect(() => {
-    onSuccessRef.current = onSuccess;
-    onErrorRef.current = onError;
-    onExpireRef.current = onExpire;
-  }, [onSuccess, onError, onExpire]);
+    // 保持 ref 最新，避免 useEffect 重跑
+    useEffect(() => {
+      onSuccessRef.current = onSuccess;
+      onErrorRef.current = onError;
+      onExpireRef.current = onExpire;
+    }, [onSuccess, onError, onExpire]);
 
-  useEffect(() => {
-    // dev 环境没配 site key → 不渲染（避免 console 报错）
-    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-    if (!siteKey) return;
-    setEnabled(true);
+    // 暴露 reset() 给父组件（关键：避免 token 复用）
+    useImperativeHandle(ref, () => ({
+      reset() {
+        if (widgetIdRef.current && window.turnstile) {
+          window.turnstile.reset(widgetIdRef.current);
+        }
+      },
+    }));
 
-    let script: HTMLScriptElement | null = null;
-    let cancelled = false;
+    useEffect(() => {
+      // dev 环境没配 site key → 不渲染（避免 console 报错）
+      const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+      if (!siteKey) return;
+      setEnabled(true);
 
-    function tryRender() {
-      if (cancelled) return;
-      if (!window.turnstile || !containerRef.current) return;
-      // 避免重复渲染（HMR 或 StrictMode 双调用）
-      if (widgetIdRef.current) return;
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        theme: 'auto',
-        size: 'flexible',
-        callback: (token: string) => onSuccessRef.current(token),
-        'error-callback': (code?: string) => onErrorRef.current?.(code),
-        'expired-callback': () => onExpireRef.current?.(),
-      });
-    }
+      let script: HTMLScriptElement | null = null;
+      let cancelled = false;
 
-    // 如果脚本已经存在（多组件共用），直接 render
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SRC}"]`);
-    if (existing) {
-      if (window.turnstile) tryRender();
-      else existing.addEventListener('load', tryRender);
+      function tryRender() {
+        if (cancelled) return;
+        if (!window.turnstile || !containerRef.current) return;
+        // 避免重复渲染（HMR 或 StrictMode 双调用）
+        if (widgetIdRef.current) return;
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          theme: 'auto',
+          size: 'flexible',
+          callback: (token: string) => onSuccessRef.current(token),
+          'error-callback': (code?: string) => onErrorRef.current?.(code),
+          'expired-callback': () => onExpireRef.current?.(),
+        });
+      }
+
+      // 如果脚本已经存在（多组件共用），直接 render
+      const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SRC}"]`);
+      if (existing) {
+        if (window.turnstile) tryRender();
+        else existing.addEventListener('load', tryRender);
+        return () => {
+          cancelled = true;
+          if (widgetIdRef.current && window.turnstile) {
+            window.turnstile.remove(widgetIdRef.current);
+            widgetIdRef.current = null;
+          }
+        };
+      }
+
+      script = document.createElement('script');
+      script.src = TURNSTILE_SRC;
+      script.async = true;
+      script.defer = true;
+      script.onload = tryRender;
+      document.head.appendChild(script);
+
       return () => {
         cancelled = true;
         if (widgetIdRef.current && window.turnstile) {
           window.turnstile.remove(widgetIdRef.current);
           widgetIdRef.current = null;
         }
+        // 不删 script：可能被其他组件复用
       };
-    }
+    }, []);
 
-    script = document.createElement('script');
-    script.src = TURNSTILE_SRC;
-    script.async = true;
-    script.defer = true;
-    script.onload = tryRender;
-    document.head.appendChild(script);
-
-    return () => {
-      cancelled = true;
-      if (widgetIdRef.current && window.turnstile) {
-        window.turnstile.remove(widgetIdRef.current);
-        widgetIdRef.current = null;
-      }
-      // 不删 script：可能被其他组件复用
-    };
-  }, []);
-
-  if (!enabled) return null;
-  return <div ref={containerRef} className={className} />;
-}
+    if (!enabled) return null;
+    return <div ref={containerRef} className={className} />;
+  }
+);

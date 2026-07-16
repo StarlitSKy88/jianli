@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { HoneypotFields } from '@/app/components/HoneypotFields';
-import { TurnstileWidget } from '@/app/components/TurnstileWidget';
+import { TurnstileWidget, type TurnstileWidgetHandle } from '@/app/components/TurnstileWidget';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -15,6 +15,7 @@ export default function RegisterPage() {
 
   // Turnstile token（每次发码 / 注册时由 widget 更新）
   const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
 
   // 验证码发送状态
   const [sendingCode, setSendingCode] = useState(false);
@@ -64,6 +65,10 @@ export default function RegisterPage() {
       const hint = d?.data?.devHint ? `（${d.data.devHint}）` : '';
       setCodeSentMsg(`验证码已发送到 ${email}${hint}`);
       startCooldown(d?.data?.cooldownSec ?? 60);
+      // Phase 14.27 修复：send 消费了 token，必须 reset widget 拿新 token 给 register 用
+      // 否则 Cloudflare 会返 timeout-or-duplicate
+      setTurnstileToken('');
+      turnstileRef.current?.reset();
     } catch {
       setError('网络错误，请检查连接');
     } finally {
@@ -175,7 +180,11 @@ export default function RegisterPage() {
         <p id="register-verify-help" className="text-xs text-gray-400">
           点击「获取验证码」后，请查收邮箱
         </p>
-        <TurnstileWidget onSuccess={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+        <TurnstileWidget
+          ref={turnstileRef}
+          onSuccess={setTurnstileToken}
+          onExpire={() => setTurnstileToken('')}
+        />
         <label className="flex items-start gap-2 text-sm text-gray-600">
           <input
             type="checkbox"
