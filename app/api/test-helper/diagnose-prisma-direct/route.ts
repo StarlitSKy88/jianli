@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
+import { isTestHelpersEnabled, testHelperDisabledResponse } from '@/lib/test-helpers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,7 +37,9 @@ interface ProbeResult {
   };
 }
 
-export async function GET(): Promise<NextResponse<ProbeResult>> {
+export async function GET(): Promise<NextResponse<ProbeResult> | Response> {
+  if (!isTestHelpersEnabled()) return testHelperDisabledResponse();
+
   // 1. 拿 prisma 客户端信息
   const prismaVersion = (await import('@prisma/client/package.json')).default.version;
   // eslint-disable-next-line @typescript-eslint/no-require-imports

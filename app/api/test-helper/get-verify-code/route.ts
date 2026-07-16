@@ -11,11 +11,10 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db/client';
 import { errorResponse, successResponse } from '@/lib/auth/middleware';
+import { isTestHelpersEnabled, testHelperDisabledResponse } from '@/lib/test-helpers';
 
 export async function GET(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
-    return errorResponse('NOT_FOUND', 'Endpoint disabled in production', 404);
-  }
+  if (!isTestHelpersEnabled()) return testHelperDisabledResponse();
   const email = req.nextUrl.searchParams.get('email');
   if (!email) return errorResponse('INVALID_EMAIL', '缺少 email 参数', 400);
 

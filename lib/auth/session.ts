@@ -7,19 +7,18 @@
  * - 失败统一返回 null（不泄露原因）
  */
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
+import { getEnv } from '@/lib/env';
 
 const ALG = 'HS256';
 
 function getSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error('JWT_SECRET 未设置或短于 32 字符');
-  }
+  // 启动期已校验：必 ≥ 32 字符
+  const secret = getEnv('JWT_SECRET');
   return new TextEncoder().encode(secret);
 }
 
 function getExpiry(): string {
-  return process.env.JWT_EXPIRES_IN || '7d';
+  return getEnv('JWT_EXPIRES_IN');
 }
 
 export interface SessionPayload extends JWTPayload {

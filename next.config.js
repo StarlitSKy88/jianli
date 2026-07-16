@@ -32,25 +32,10 @@ const nextConfig = {
       },
     ];
   },
-
-  // EdgeOne Edge Functions 兼容（Prisma + bcrypt 不要打包）
-  serverExternalPackages: ['@prisma/client', 'bcryptjs'],
-
-  // Phase 14.12 ROOT CAUSE 修复：
-  //   EdgeOne Pages 镜像 = Amazon Linux 2 + OpenSSL 1.1.1
-  //   prisma 客户端探测 runtime → 要求 libquery_engine-rhel-openssl-1.1.x.so.node
-  //   之前 binaryTargets 只有 3.0.x → 永远找不到 → throw 500
-  // 必须显式追踪所有 engine binary（含 rhel-openssl-1.1.x）：
-  // pnpm 把真实文件放在 .pnpm/@prisma+client*/node_modules/.prisma/client/
-  // node_modules/.prisma/client/ 是软链接，但 outputFileTracing 不解析 symlink
-  // → 用 .pnpm 通配直接抓真实路径
-  outputFileTracingIncludes: {
-    '**': [
-      './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/libquery_engine-rhel-openssl-1.1.x.so.node',
-      './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node',
-      './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/schema.prisma',
-    ],
-  },
+  // Phase 14.22 ROOT CAUSE 修复：EdgeOne Pages cloud-functions 128MiB 上限
+  // Prisma + bcryptjs 不打包进 webpack bundle（运行时从 node_modules 解析）
+  // 注意：Next.js 14.2 用 serverComponentsExternalPackages（15.x 才改成 serverExternalPackages）
+  serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
 };
 
 module.exports = nextConfig;

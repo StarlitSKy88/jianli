@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { isTestHelpersEnabled, testHelperDisabledResponse } from '@/lib/test-helpers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -49,7 +50,9 @@ function safeExec(cmd: string): string {
   }
 }
 
-export async function GET(): Promise<NextResponse<DiagnoseResult>> {
+export async function GET(): Promise<NextResponse<DiagnoseResult> | Response> {
+  if (!isTestHelpersEnabled()) return testHelperDisabledResponse();
+
   // 1. Node 基本信息
   const node = {
     version: process.version,
