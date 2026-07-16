@@ -99,6 +99,12 @@ export default function LoginPage() {
             注册
           </a>
         </p>
+        <p className="text-sm text-center text-gray-500">
+          忘记密码？
+          <a href="/reset-password" className="underline">
+            重置
+          </a>
+        </p>
       </form>
     </main>
   );

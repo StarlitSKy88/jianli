@@ -39,7 +39,12 @@ export type TrackEventName =
   | 'register_rate_limited'
   | 'login_rate_limited'
   | 'feedback_honeypot'
-  | 'feedback_submit';
+  | 'feedback_submit'
+  // === Phase 14.32 密码重置流程 ===
+  | 'reset_code_request'
+  | 'reset_code_honeypot'
+  | 'password_reset_success'
+  | 'reset_password_honeypot';
 
 /**
  * 5 个核心事件必须真实写库（关业务决策）。
@@ -65,6 +70,11 @@ const EVENT_WHITELIST: ReadonlySet<string> = new Set([
   'login_rate_limited',
   'feedback_honeypot',
   'feedback_submit',
+  // Phase 14.32 密码重置
+  'reset_code_request',
+  'reset_code_honeypot',
+  'password_reset_success',
+  'reset_password_honeypot',
 ]);
 
 export function track(
