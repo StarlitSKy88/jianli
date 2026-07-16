@@ -4,16 +4,14 @@
 
 generator client {
   provider      = "prisma-client-js"
-  // Phase 14.12 ROOT CAUSE 修复：
-  //   prod 报错 "rhel-openssl-1.1.x"，但 binaryTargets 里只有 3.0.x → 永远找不到
-  //   EdgeOne Pages 镜像 = Amazon Linux 2 + OpenSSL 1.1.1（不是 3.0）
-  //   之前 14.6/14.7/14.8 三个 fix 都在打错位置，因为底层 binaryTargets 本身就不对
-  // 覆盖矩阵：
-  //   - native + darwin-arm64: macOS dev / Vercel macOS build env
-  //   - linux-musl-openssl-3.0.x: Cloudflare Workers / Alpine 容器
-  //   - rhel-openssl-1.1.x: EdgeOne Pages / AWS Lambda / Amazon Linux 2（核心修复）
-  //   - rhel-openssl-3.0.x: AWS Lambda Node.js 18+ / Amazon Linux 2023 备用
-  binaryTargets = ["native", "darwin-arm64", "linux-musl-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
+  // Phase 14.22 ROOT CAUSE 修复：
+  //   EdgeOne Pages 镜像 = Amazon Linux 2 + OpenSSL 1.1.1
+  //   部署包超 128MiB 限制（145MiB）→ 删 darwin + linux-musl 节省 ~62MB
+  // 覆盖矩阵（精简到 EdgeOne 必需）：
+  //   - native: EdgeOne build env (Linux glibc) 自动探测 → linux + libssl
+  //   - rhel-openssl-1.1.x: 兜底，万一 runtime 探测结果不一致
+  //   - rhel-openssl-3.0.x: 兜底，万一 OpenSSL 3 镜像
+  binaryTargets = ["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {

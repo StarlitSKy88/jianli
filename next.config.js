@@ -46,15 +46,9 @@ const nextConfig = {
   // → 用 .pnpm 通配直接抓真实路径
   outputFileTracingIncludes: {
     '**': [
-      './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/libquery_engine-darwin-arm64.dylib.node',
-      './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node',
       './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/libquery_engine-rhel-openssl-1.1.x.so.node',
       './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node',
       './node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/.prisma/client/schema.prisma',
-      './node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/libquery_engine-darwin-arm64.dylib.node',
-      './node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/libquery_engine-linux-musl-openssl-3.0.x.so.node',
-      './node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/libquery_engine-rhel-openssl-1.1.x.so.node',
-      './node_modules/.pnpm/prisma@5.20.0/node_modules/prisma/libquery_engine-rhel-openssl-3.0.x.so.node',
     ],
   },
 };
