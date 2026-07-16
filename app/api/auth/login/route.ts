@@ -33,14 +33,18 @@ export async function POST(req: NextRequest) {
   }
 
   // 2) Turnstile：dev 环境无 secret 时跳过
-  const ts = await verifyTurnstile(parsed.data.turnstileToken ?? '', ip);
-  if (!ts.ok) {
-    return errorResponse(
-      'TURNSTILE_FAILED',
-      `人机验证失败: ${ts.errorCodes?.join(',') ?? 'unknown'}（token ${parsed.data.turnstileToken ? parsed.data.turnstileToken.slice(0, 8) + '...' : 'EMPTY'}）`,
-      400,
-      req
-    );
+  // Phase 14.34 临时旁路：DISABLE_TURNSTILE=1 env 启用时直接跳过
+  // （prod widget 渲染失败期间，让真实用户能登录；蜜罐 + IP 限流仍生效）
+  if (process.env.DISABLE_TURNSTILE !== '1') {
+    const ts = await verifyTurnstile(parsed.data.turnstileToken ?? '', ip);
+    if (!ts.ok) {
+      return errorResponse(
+        'TURNSTILE_FAILED',
+        `人机验证失败: ${ts.errorCodes?.join(',') ?? 'unknown'}（token ${parsed.data.turnstileToken ? parsed.data.turnstileToken.slice(0, 8) + '...' : 'EMPTY'}）`,
+        400,
+        req
+      );
+    }
   }
 
   const { email, password } = parsed.data;

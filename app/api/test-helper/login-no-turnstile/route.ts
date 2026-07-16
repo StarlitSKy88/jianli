@@ -68,11 +68,31 @@ export async function POST(req: NextRequest) {
   }
 
   // 密码正确 — 签 JWT + Set-Cookie（让用户能进 /interview/new 验证全链路）
-  const token = await signSession({ userId: user.id, email: user.email });
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
+  let token: string;
+  try {
+    token = await signSession({ userId: user.id, email: user.email });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error(`[login-no-turnstile] signSession threw: ${msg}`);
+    return errorResponse(
+      'JWT_SIGN_FAILED',
+      `JWT 签名失败: ${msg.slice(0, 200)} | 检查: ① JWT_SECRET 是否 ≥ 32 字符 ② jose 依赖是否正确打包`,
+      500,
+      req
+    );
+  }
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error(`[login-no-turnstile] lastLoginAt update threw: ${msg}`);
+    // 不阻断 — lastLoginAt 失败不影响登录
+  }
 
   const res = successResponse(
     {
