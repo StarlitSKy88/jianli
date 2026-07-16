@@ -85,8 +85,13 @@ export default function LoginPage() {
           </p>
         )}
         <TurnstileWidget onSuccess={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? '登录中…' : '登录'}
+        <button
+          type="submit"
+          disabled={loading || !turnstileToken}
+          className="btn-primary w-full"
+          title={!turnstileToken ? '请等待人机验证完成' : undefined}
+        >
+          {loading ? '登录中…' : !turnstileToken ? '等待人机验证…' : '登录'}
         </button>
         <p className="text-sm text-center text-gray-500">
           没有账号？
