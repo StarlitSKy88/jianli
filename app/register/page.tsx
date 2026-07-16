@@ -65,8 +65,10 @@ export default function RegisterPage() {
       const hint = d?.data?.devHint ? `（${d.data.devHint}）` : '';
       setCodeSentMsg(`验证码已发送到 ${email}${hint}`);
       startCooldown(d?.data?.cooldownSec ?? 60);
-      // Phase 14.27 修复：send 消费了 token，必须 reset widget 拿新 token 给 register 用
-      // 否则 Cloudflare 会返 timeout-or-duplicate
+      // Phase 14.28 修复：
+      // send 已消费了 Cloudflare token，必须 reset widget 拿新 token 给 register 用
+      // 但 reset() 清空状态但**不会立即 callback** —— 新 token 要等用户行为触发
+      // 因此：清空本地 token + 锁定 register 按钮直到 widget 重新回调
       setTurnstileToken('');
       turnstileRef.current?.reset();
     } catch {
@@ -81,6 +83,11 @@ export default function RegisterPage() {
     setError(null);
     if (!agreed) {
       setError('请先勾选同意《用户协议》和《隐私政策》');
+      return;
+    }
+    // Phase 14.28: send 后 token 被 reset，register 必须等待新 token 就绪
+    if (!turnstileToken) {
+      setError('人机验证未完成，请等待验证组件就绪后重试');
       return;
     }
     setLoading(true);
@@ -209,8 +216,13 @@ export default function RegisterPage() {
             {error}
           </p>
         )}
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? '注册中…' : '注册'}
+        <button
+          type="submit"
+          disabled={loading || !turnstileToken}
+          className="btn-primary w-full"
+          title={!turnstileToken ? '请等待人机验证完成' : undefined}
+        >
+          {loading ? '注册中…' : !turnstileToken ? '等待人机验证…' : '注册'}
         </button>
         <p className="text-sm text-center text-gray-500">
           已有账号？
