@@ -8,12 +8,16 @@
  *
  * 铁律（防回归）：
  * - ❌ 不要在生产环境长期保持 ENABLE_TEST_HELPERS=1
- * - ❌ 不要用 NODE_ENV === 'production' 作为唯一条件（CLI/Edge 注入可能不设）
  * - ✅ 调试结束后立刻 EdgeOne 控制台删除 env var
+ *
+ * Phase 14.33.1 修正：去掉 NODE_ENV !== 'production' 限制。
+ * 原因：原设计"三重保险"导致 prod 永远无法开启 debug
+ *  → Phase 14.33 用户确认 ENABLE_TEST_HELPERS=1 已注入
+ *  → 仍返回 404 是因为 NODE_ENV=production 把第二条短路了
+ * 修订：env var 是**唯一**判断依据 + 文档化铁律要求用完立刻删
  */
 export function isTestHelpersEnabled(): boolean {
-  // 三重保险：env 显式开启 AND 不是强制 production
-  return process.env.ENABLE_TEST_HELPERS === '1' && process.env.NODE_ENV !== 'production';
+  return process.env.ENABLE_TEST_HELPERS === '1';
 }
 
 /**
