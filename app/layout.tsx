@@ -1,8 +1,26 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { FeedbackWidget } from '@/app/components/FeedbackWidget';
+import { Inter, Instrument_Serif } from 'next/font/google';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://jianli.taomyst.top';
+
+// Phase 15.5: Prisma 风格字体 — Inter 全局默认（替代 Almarai，因 Almarai 只支持阿拉伯 subset）
+// + Instrument Serif 斜体衬线（保留 Prisma 标志性的 italic 强调）
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700', '800'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ['latin'],
+  weight: '400',
+  style: ['normal', 'italic'],
+  variable: '--font-instrument-serif',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
@@ -44,33 +62,34 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
-      <body>
+    <html lang="zh-CN" className={`${inter.variable} ${instrumentSerif.variable}`}>
+      <body className={inter.className}>
         {children}
         <FeedbackWidget />
         <footer
           style={{
-            borderTop: '1px solid #e5e7eb',
+            borderTop: '1px solid #1f1f1f',
             padding: '1.5rem 1rem',
             textAlign: 'center',
             fontSize: '12px',
-            color: '#6b7280',
-            marginTop: '3rem',
+            color: '#787774',
+            marginTop: '0',
+            backgroundColor: '#0a0a0a',
           }}
         >
           <p>
             © 2026 Interview Buddy ·{' '}
-            <a href="/legal/terms" style={{ color: '#6b7280', textDecoration: 'underline' }}>
+            <a href="/legal/terms" style={{ color: '#DEDBC8', textDecoration: 'underline' }}>
               用户协议
             </a>{' '}
             ·{' '}
-            <a href="/legal/privacy" style={{ color: '#6b7280', textDecoration: 'underline' }}>
+            <a href="/legal/privacy" style={{ color: '#DEDBC8', textDecoration: 'underline' }}>
               隐私政策
             </a>{' '}
             ·{' '}
             <a
               href="mailto:support@taomyst.top"
-              style={{ color: '#6b7280', textDecoration: 'underline' }}
+              style={{ color: '#DEDBC8', textDecoration: 'underline' }}
             >
               联系我们
             </a>
@@ -80,7 +99,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               href="https://beian.miit.gov.cn/"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: '#6b7280', textDecoration: 'underline' }}
+              style={{ color: '#787774', textDecoration: 'underline' }}
             >
               京ICP备2025108350号-2
             </a>

@@ -4,30 +4,114 @@
 
 @layer base {
   body {
-    @apply bg-white text-gray-900 antialiased;
+    @apply bg-[#0a0a0a] text-[#DEDBC8] antialiased;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+  html {
+    scroll-behavior: smooth;
   }
 }
 
 @layer components {
-  .btn-primary {
-    @apply px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700
-           focus-visible:outline-none focus-visible:ring-2
-           focus-visible:ring-blue-400 focus-visible:ring-offset-2
-           disabled:opacity-50 disabled:cursor-not-allowed transition;
-  }
-  .btn-secondary {
-    @apply px-4 py-2 bg-gray-100 text-gray-900 rounded-md hover:bg-gray-200
-           focus-visible:outline-none focus-visible:ring-2
-           focus-visible:ring-gray-400 focus-visible:ring-offset-2
-           disabled:opacity-50 disabled:cursor-not-allowed transition;
-  }
+  /* Inputs — dark moody variant */
   .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md
-           bg-white text-gray-900
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-           disabled:bg-gray-100 disabled:cursor-not-allowed;
+    @apply w-full px-4 py-3 border border-white/10 rounded-lg
+           bg-white/5 text-[#E1E0CC] placeholder:text-[#787774]
+           focus:outline-none focus:ring-2 focus:ring-[#DEDBC8]/30 focus:border-[#DEDBC8]/40
+           disabled:bg-white/[0.02] disabled:cursor-not-allowed
+           transition-all duration-200;
   }
+
+  /* Primary CTA — cream pill (Prisma spec) */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-6 py-3
+           bg-[#DEDBC8] text-black rounded-full font-medium
+           hover:bg-[#E1E0CC] hover:gap-3
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-[#DEDBC8] focus-visible:ring-offset-2
+           focus-visible:ring-offset-black
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-300;
+  }
+
+  /* Secondary CTA — outline cream */
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-6 py-3
+           border border-[#DEDBC8]/30 text-[#DEDBC8] rounded-full font-medium
+           hover:border-[#DEDBC8] hover:bg-[#DEDBC8]/5
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-[#DEDBC8] focus-visible:ring-offset-2
+           focus-visible:ring-offset-black
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-300;
+  }
+
   .card {
-    @apply bg-white rounded-lg shadow p-6;
+    @apply bg-[#101010] rounded-2xl p-6;
   }
+
+  /* Heading serif accent (italic) */
+  .font-serif-italic {
+    font-family: var(--font-instrument-serif), 'Georgia', serif;
+    font-style: italic;
+  }
+}
+
+@layer utilities {
+  /* SVG noise textures (inline data URIs) */
+  .noise-overlay {
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.85'/></svg>");
+    background-size: 200px 200px;
+  }
+  .bg-noise {
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/></svg>");
+    background-size: 180px 180px;
+  }
+
+  /* Word pull-up animation (fade-up reveal) */
+  .word-pull-up {
+    display: inline-block;
+    transform: translateY(20px);
+    opacity: 0;
+    animation: word-pull-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes word-pull-up {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.scroll-fade-char {
+  display: inline-block;
+  opacity: 0.15;
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+.scroll-fade-char.is-visible {
+  opacity: 1;
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.card-rise {
+  opacity: 0;
+  animation: card-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes slow-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.slow-rotate {
+  animation: slow-rotate 20s linear infinite;
 }
