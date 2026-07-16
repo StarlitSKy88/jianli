@@ -148,6 +148,13 @@ export async function verifyTurnstile(
   token: string,
   remoteIp?: string
 ): Promise<TurnstileVerifyResult> {
+  // Phase 14.33.5 临时逃生口：prod Turnstile widget 渲染失败期间
+  // 设置 DISABLE_TURNSTILE=1 后直接返回 ok=true（蜜罐 + IP 限流仍生效）
+  // ⚠️ 用完立刻删 env var
+  if (process.env.DISABLE_TURNSTILE === '1') {
+    return { ok: true };
+  }
+
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
     // dev 环境无 secret → 跳过（避免阻断本地开发）
