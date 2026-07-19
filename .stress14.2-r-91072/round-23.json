@@ -1,0 +1,12 @@
+{
+  "round": 23,
+  "user_say": "ISR \u6536\u7f29\u548c\u6269\u5f20\u662f Kafka \u8fd0\u7ef4\u7684\u5173\u952e",
+  "ai_say": "\u4f60\u4e4b\u524d\u5728\u5b57\u8282\u505a\u8fc7 3 \u5e74\uff0c\u80fd\u804a\u804a\u4f60\u5370\u8c61\u6700\u6df1\u7684\u4e00\u6b21\u8de8\u56e2\u961f\u534f\u4f5c\u5417\uff1f",
+  "ai_error": "",
+  "ai_chars": 31,
+  "http": 200,
+  "time_sec": 8,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

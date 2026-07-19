@@ -319,6 +319,7 @@ curl -sS "$DOMAIN/api/auth/register" \
 | **SSE 60s 后断开** | EdgeOne Functions 默认 30s | 在 `edgeone.json` 配 `maxDuration: 60` |
 | **PDF 上传 413** | 函数 body limit | next.config.js `serverActions.bodySizeLimit: '10mb'` |
 | **JWT cookie 不持久** | EdgeOne 默认 secure cookie 需 HTTPS | 部署后用 https 访问 |
+| **⛔ 部署详情 ✅ 成功但 API 全部 404 / 业务 500 不变** | **cloud-functions package 超 128MiB 上限（bug-018 终极根因）** | (1) **第一时间点开 EdgeOne 部署详情「错误日志」tab**（默认折叠，找 `Cloud SSR Node functions package size exceeds 128MiB limit` 字样）。(2) 精简 `prisma/schema.prisma` 的 `binaryTargets` 到 3 项：`["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]`（删 `darwin-arm64` + `linux-musl-openssl-3.0.x`，节省 ~62MB）。(3) 同步精简 `next.config.js` 的 `outputFileTracingIncludes` 与 `edgeone.json` 的 `cloudFunctions.nodejs.includeFiles`。(4) 本地 `du -sh .next` 必查 < 120MiB 留余量。**铁律**：build 体积超出但「构建状态」仍可能显示 ✅ 成功（EdgeOne UI 不把超限当整体失败），必须看「错误日志」tab。详见 `.knowledge/bugs/2026-07-16-018-edgeone-pages-128mib-size-limit.md`。 |
 
 ### 9.3 日志调试
 

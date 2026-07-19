@@ -1,0 +1,12 @@
+{
+  "round": 14,
+  "user_say": "\u6211\u4eec\u7528 Redis Lua \u811a\u672c\u4fdd\u8bc1\u539f\u5b50\u6263\u51cf",
+  "ai_say": "\u5047\u8bbe\u670d\u52a1 QPS \u7a81\u7136\u4ece 1w \u6da8\u5230 100w\uff0c\u4f60\u7684\u9650\u6d41\u3001\u7194\u65ad\u3001\u964d\u7ea7\u65b9\u6848\u662f\u4ec0\u4e48\uff1f",
+  "ai_error": "",
+  "ai_chars": 40,
+  "http": 200,
+  "time_sec": 8,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

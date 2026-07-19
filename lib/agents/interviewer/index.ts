@@ -101,33 +101,80 @@ export class Interviewer {
     return `${base}\n\n## 当前候选人上下文\n${ctxJson}\n\n## 提醒\n- 输出严格 JSON（不要包裹 \`\`\`json 代码块）\n- 严格遵守红线（不问 PII）`;
   }
 
-  /** 解析 AI 输出为 InterviewerOutput，失败 fallback 文本模式 */
+  /**
+   * 解析 AI 输出为 InterviewerOutput。
+   * P0-4 修复：去掉"用万能 fallback 文案伪装成功"的策略。
+   * - 解析失败时抛错（让 route.ts catch 接住 → STREAM_ERROR 显式失败）
+   * - 不再用 "请继续介绍您的项目" 当默认回复污染 history
+   *
+   * Phase 13.6 容错：Hy3/小模型经常输出 "好的，以下是 JSON:\n```json\n{...}\n```"
+   * 或者解释+JSON混杂。再加两种提取方式以提高成功率。
+   */
   private parseOutput(raw: string): InterviewerOutput {
     // 尝试 1：直接 JSON.parse
     try {
       return InterviewerOutputSchema.parse(JSON.parse(raw));
     } catch {
-      // ignore, try fenced
+      // ignore
     }
 
     // 尝试 2：提取 ```json ... ``` 块
-    const m = raw.match(/```(?:json)?\s*([\s\S]+?)```/);
-    if (m) {
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)```/);
+    if (fenced) {
       try {
-        return InterviewerOutputSchema.parse(JSON.parse(m[1]));
+        return InterviewerOutputSchema.parse(JSON.parse(fenced[1]));
       } catch {
         // ignore
       }
     }
 
-    // 尝试 3：文本 fallback（用最宽容的 schema）
-    console.warn(`[interviewer] AI 输出非 JSON, fallback: ${raw.slice(0, 100)}`);
-    const cleanedQuestion = raw.trim().slice(0, 500) || '请继续介绍您的项目。';
-    return {
-      question: cleanedQuestion,
-      dimension: 'tech',
-      phase: 'deep',
-    };
+    // 尝试 3：提取首段 { ... } JSON 块（容错 Hy3 的 "以下是：" + 杂文本）
+    // 用首个 { 到 最后一个匹配的 }（平衡匹配，简化版）
+    const firstBrace = raw.indexOf('{');
+    if (firstBrace !== -1) {
+      // 从首 { 开始累计，到每个 } 算一次平衡；平衡=0 时结束
+      let depth = 0;
+      let inStr = false;
+      let escape = false;
+      for (let i = firstBrace; i < raw.length; i++) {
+        const ch = raw[i];
+        if (inStr) {
+          if (escape) {
+            escape = false;
+            continue;
+          }
+          if (ch === '\\') {
+            escape = true;
+            continue;
+          }
+          if (ch === '"') inStr = false;
+          continue;
+        }
+        if (ch === '"') {
+          inStr = true;
+          continue;
+        }
+        if (ch === '{') {
+          depth++;
+          continue;
+        }
+        if (ch === '}') {
+          depth--;
+          if (depth === 0) {
+            const candidate = raw.slice(firstBrace, i + 1);
+            try {
+              return InterviewerOutputSchema.parse(JSON.parse(candidate));
+            } catch {
+              break; // 退出去走 fallback 报错
+            }
+          }
+        }
+      }
+    }
+
+    // P0-4：解析彻底失败 → 抛错而不是返回 fallback 文案
+    console.error('[interviewer] AI 输出非 JSON，无法 parse', { raw: raw.slice(0, 200) });
+    throw new Error(`[interviewer] AI 输出非 JSON: ${raw.slice(0, 80)}`);
   }
 
   /** PII 黑名单扫描 — 即使 AI 输出也强制拦下 */

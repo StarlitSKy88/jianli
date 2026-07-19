@@ -76,15 +76,16 @@ describe.each(['byte', 'ali', 'tencent', 'bili'] as const)('company=%s', (type) 
 });
 
 describe('output parsing edge cases', () => {
-  it('falls back gracefully on non-JSON AI output', async () => {
+  // P0-4 修复后行为变更：AI 输出非 JSON → 显式 throw（让 route catch 接住 STREAM_ERROR），
+  // 不能再用 "请继续介绍您的项目" 等万能文案伪装成功（会污染 history）。
+  it('throws on non-JSON AI output (P0-4: no more silent fallback)', async () => {
     mockAiChat.mockResolvedValueOnce({
       content: '好的，让我问你下一个问题：你最大的技术挑战是什么？',
       provider: 'minimax',
       model: 'MiniMax-M3',
     });
     const iv = new Interviewer(makeCtx('byte'));
-    const out = await iv.ask();
-    expect(out.question).toContain('技术挑战');
+    await expect(iv.ask()).rejects.toThrow(/AI 输出非 JSON/);
   });
 
   it('parses ```json fenced output', async () => {
@@ -99,16 +100,41 @@ describe('output parsing edge cases', () => {
   });
 
   it('throws on invalid JSON schema (raw garbage)', async () => {
-    // AI 返回完全无法解析的字符串（不是 JSON 也不是自然语言问题）→ 走 fallback 但 question 为空也不该 throw
+    // P0-4：完全无法解析的字符串（不是 JSON 也不是自然语言问题）→ 必须 throw
     mockAiChat.mockResolvedValueOnce({
       content: '你',
       provider: 'minimax',
       model: 'MiniMax-M3',
     });
     const iv = new Interviewer(makeCtx('byte'));
+    await expect(iv.ask()).rejects.toThrow(/AI 输出非 JSON/);
+  });
+
+  it('parses JSON embedded in text (Phase 13.6 tolerant parser)', async () => {
+    // Hy3 等小模型常输出 "好的，以下是 JSON：" + {valid JSON} + 后续解释
+    mockAiChat.mockResolvedValueOnce({
+      content:
+        '好的，让我把它整理成 JSON：\n{"question":"讲讲 Redis 雪崩","dimension":"tech","phase":"deep"}\n希望对你有帮助。',
+      provider: 'openrouter',
+      model: 'tencent/hy3:free',
+    });
+    const iv = new Interviewer(makeCtx('byte'));
     const out = await iv.ask();
-    expect(out.question).toBeTruthy();
-    expect(out.question.length).toBeGreaterThan(0);
+    expect(out.question).toBe('讲讲 Redis 雪崩');
+  });
+
+  it('parses JSON with leading explanation prefix', async () => {
+    // Phase 13.6 容错：首段花括号平衡匹配
+    mockAiChat.mockResolvedValueOnce({
+      content:
+        '以下是符合要求的输出：{"question":"你最有成就的项目？","dimension":"project","phase":"deep"}',
+      provider: 'openrouter',
+      model: 'google/gemma-4-26b-a4b-it:free',
+    });
+    const iv = new Interviewer(makeCtx('ali'));
+    const out = await iv.ask();
+    expect(out.question).toBe('你最有成就的项目？');
+    expect(out.dimension).toBe('project');
   });
 });
 

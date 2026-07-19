@@ -41,10 +41,22 @@ class OpenRouterProvider implements AiProvider {
   private readonly baseURL = 'https://openrouter.ai/api/v1';
   private readonly defaultModel: string;
   private readonly extraHeaders: Record<string, string>;
+  // Phase 13.6: 余额/quota/404 错误时切换的备用 free 模型列表
+  // 注意：不同 free 模型 quota 独立，hy3 限速不会影响 deepseek-r1
+  private readonly fallbackModels: string[];
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
     this.defaultModel = process.env.OPENROUTER_MODEL ?? 'tencent/hy3:free';
+    // 用逗号分隔配置：OPENROUTER_FALLBACK_MODELS="modelA,modelB,modelC"
+    // Phase 13.6 实测：以上 4 个 free 模型 2026-07-15 都返回 200
+    const fb =
+      process.env.OPENROUTER_FALLBACK_MODELS ??
+      'openai/gpt-oss-20b:free,google/gemma-4-26b-a4b-it:free,cohere/north-mini-code:free,nvidia/nemotron-nano-9b-v2:free';
+    this.fallbackModels = fb
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     this.extraHeaders = {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -54,47 +66,76 @@ class OpenRouterProvider implements AiProvider {
   }
 
   private buildPayload(messages: ChatMessage[], opts: ChatOptions): OpenRouterPayload {
+    const model = opts.modelOverride || this.defaultModel;
     const payload: OpenRouterPayload = {
-      model: opts.modelOverride || this.defaultModel,
+      model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       temperature: opts.temperature ?? 0.7,
       max_tokens: opts.maxTokens ?? 1024,
     };
     // Hy3 默认 reasoning，会把内部思考塞 content 里；显式设 low 让它只输出回答
-    if (this.defaultModel.includes('hy3') || this.defaultModel.includes('hunyuan')) {
+    if (model.includes('hy3') || model.includes('hunyuan')) {
       payload.reasoning_effort = 'low';
     }
     return payload;
   }
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResult> {
-    const payload = { ...this.buildPayload(messages, opts), stream: false };
-    const r = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: this.extraHeaders,
-      body: JSON.stringify(payload),
-      // Node 18+ fetch timeout via AbortSignal
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!r.ok) {
-      const errText = await r.text();
-      throw new Error(`[openrouter] ${r.status} ${r.statusText}: ${errText.slice(0, 200)}`);
+    const errors: string[] = [];
+    // Phase 13.6: 内部 try defaultModel + fallbackModels，跳过 quota/余额错误
+    const tried = new Set<string>();
+    const queue = [opts.modelOverride || this.defaultModel, ...this.fallbackModels];
+    for (const model of queue) {
+      if (tried.has(model)) continue;
+      tried.add(model);
+      const payload = {
+        ...this.buildPayload(messages, { ...opts, modelOverride: model }),
+        stream: false,
+      };
+      try {
+        const r = await fetch(`${this.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers: this.extraHeaders,
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!r.ok) {
+          const errText = (await r.text()).slice(0, 200);
+          errors.push(`${model}=${r.status}`);
+          // 402/429/404/quota → 切下一个；其他（500）→ 也切下一个，但不重试太多
+          continue;
+        }
+        const data = (await r.json()) as OpenRouterResponse;
+        const choice = data.choices?.[0];
+        if (!choice) {
+          errors.push(`${model}=noChoice`);
+          continue;
+        }
+        const content = choice.message.content || '';
+        if (!content || content.trim().length === 0) {
+          errors.push(`${model}=emptyContent`);
+          continue;
+        }
+        if (model !== this.defaultModel) {
+          console.info(`[openrouter] failover → ${model}`);
+        }
+        return {
+          content,
+          usage: data.usage
+            ? {
+                promptTokens: data.usage.prompt_tokens,
+                completionTokens: data.usage.completion_tokens,
+                totalTokens: data.usage.total_tokens,
+              }
+            : undefined,
+          provider: this.name,
+          model: data.model,
+        };
+      } catch (e) {
+        errors.push(`${model}=${(e as Error).message.slice(0, 80)}`);
+      }
     }
-    const data = (await r.json()) as OpenRouterResponse;
-    const choice = data.choices?.[0];
-    if (!choice) throw new Error('[openrouter] No choice in response');
-    return {
-      content: choice.message.content || '',
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
-      provider: this.name,
-      model: data.model,
-    };
+    throw new Error(`[openrouter] all models failed: ${errors.join('; ')}`);
   }
 
   async streamChat(

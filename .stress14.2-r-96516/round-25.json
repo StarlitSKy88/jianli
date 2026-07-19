@@ -1,0 +1,12 @@
+{
+  "round": 25,
+  "user_say": "\u9047\u5230\u8fc7\uff0c\u540e\u6765\u8c03\u5c0f\u4e86 replica.lag.time.max.ms",
+  "ai_say": "\u7ebf\u4e0a\u51fa\u4e86 P0 \u6545\u969c\uff0c\u4f60\u4f5c\u4e3a oncall \u600e\u4e48\u5904\u7406\uff1f\u8bb2\u8bb2\u4f60\u7684\u65b9\u6cd5\u8bba\u3002",
+  "ai_error": "",
+  "ai_chars": 35,
+  "http": 200,
+  "time_sec": 7,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

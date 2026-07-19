@@ -1,0 +1,12 @@
+{
+  "round": 16,
+  "user_say": "\u5206\u5e03\u5f0f\u9501\u5728 Redis \u4e3b\u4ece\u5207\u6362\u65f6\u53ef\u80fd\u5931\u6548",
+  "ai_say": "\u6765\u4e00\u9053\u7b97\u6cd5\u9898\uff1a\u7ed9\u5b9a\u4e00\u4e2a\u672a\u6392\u5e8f\u6570\u7ec4\uff0c\u627e\u51fa\u7b2c K \u5927\u7684\u5143\u7d20\u3002\u8981\u6c42\u65f6\u95f4\u590d\u6742\u5ea6 O(n)\u3002",
+  "ai_error": "",
+  "ai_chars": 41,
+  "http": 200,
+  "time_sec": 7,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

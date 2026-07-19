@@ -1,0 +1,5 @@
+李明
+38岁 | 10年Go后端 | 字节跳动推荐系统
+技术栈: Go / Flink / Kafka / Redis / Kubernetes
+项目: 抖音推荐后端 / TikTok 直播弹幕
+1784105013763158000

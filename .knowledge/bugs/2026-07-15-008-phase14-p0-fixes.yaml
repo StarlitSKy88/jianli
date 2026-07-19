@@ -1,0 +1,75 @@
+id: bug-YYYY-MM-DD-008
+title: Phase 14.2 30 轮面试压测暴露 5 个 P0 问题
+category: bug
+severity: critical
+tags: [phase-14, p0-bug, testing-validation, message-api, scoring]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 14.2 真实场景压测（单用户 30 轮完整深度面试 + 评分）暴露多重 P0：
+  1. 测试脚本验证器撒谎：phase-14-2-30rounds.sh:323 把 STREAM_ERROR JSON（81 字符）误判为成功（HTTP=200 && len>10）
+  2. finish 请求被 messages.max(50) 拦成 400：历史累积到 51 条，超过 schema 上限，触发 validationErrorResponse，finish=true 从未进入后端 → 评分未触发
+  3. HTTP 200 语义与业务成功脱钩：SSE 异常也被包成 data:{error} 走 200，监控/告警全盲
+  4. fallback "请继续介绍您的项目" 静默吞错：index.ts:105-131 parseOutput 第三档 fallback 返回固定文案，伪装成正常回复，被写入 history 污染后续
+  5. 上游 AI provider 402 余额耗尽：3-tier 兜底未生效，18/30 轮 0 有效 AI 响应
+
+  真实业务成功率 = 1/30 = 3.3%，不是 AUDIT_SUMMARY 写的 19/30 = 63%。
+
+solution: |
+  5 个 P0 必须修，按依赖顺序：
+
+  ## P0-1 测试脚本验证器修复（独立 subagent 评审指出）
+  - 文件：tests/stress/phase-14-2-30rounds.sh
+  - 修复：成功判定排除 error 分支
+    - 旧：`[ "$HTTP" = "200" ] && [ ${#AI_TEXT} -gt 10 ]`
+    - 新：`[ "$HTTP" = "200" ] && [ -z "$AI_ERROR" ] && [ ${#AI_TEXT} -gt 20 ]`
+  - 单独统计 STREAM_ERROR 计数并 fail-fast
+
+  ## P0-2 messages.max(50) 滑动窗口（评分真根因）
+  - 文件：app/api/interview/[id]/message/route.ts:38
+  - 修复：服务端在持久化 user message + 构造 history 前做滑动窗口
+    ```ts
+    const MAX_HISTORY = 40; // 留余量给 system + 当前消息
+    const recentMessages = body.data.messages.slice(-MAX_HISTORY);
+    ```
+  - 或在 schema 用 z.string().max(N*2) 让前段截断
+  - 客户端：messages 累积超过 30 条时主动截断（保留首条 system 等价物 + 最近 N 条）
+
+  ## P0-3 HTTP 200 语义修正
+  - 文件：app/api/interview/[id]/message/route.ts:198-202
+  - 修复：catch 分支不要 enqueue sseEvent(error) 假装成功，应该：
+    - 立即 controller.error() 或写完 error event 后 controller.close()
+    - 加上 X-Error-Code header 让 client 能区分
+  - 或：失败时改用 200 但响应头 `X-Biz-Status: error` 显式标注
+
+  ## P0-4 fallback 静默吞错修复
+  - 文件：lib/agents/interviewer/index.ts:105-131
+  - 修复：parseOutput 三档 fallback 区分
+    - "AI 返回了内容但非 JSON" → 标记为 parseWarn，让 route 不持久化到 history
+    - "AI 挂了（error code）" → 抛错让 catch 接住
+  - 永远不要返回固定文案 "请继续介绍您的项目" 当作有效回复
+  - 客户端 + 服务端都拒绝 fallback 内容进入 history
+
+  ## P0-5 AI provider 余额健康检查
+  - 文件：lib/ai/router.ts（ai-router）
+  - 修复：
+    - 启动时 ping 一次 provider，确认有余额
+    - 3-tier 兜底：Hy3 → Claude → DeepSeek，确认每一层 key 都健康
+    - 全部 402 时立即 fail-fast（不等 30s 超时）
+    - 加 metric：provider 失败率、剩余余额估算
+
+  ## 验证
+  - 修完 P0-1 后用 mock provider 重跑（独立环境，可控）
+  - 修完 P0-2 后用真实 provider 重跑，验证 finish 触发评分
+  - 修完 P0-3+P0-4 后用真实 provider 重跑 30 轮，业务成功率应 ≥ 90%
+
+verification:
+  unit: 验证器逻辑 unit test
+  integration: 滑动窗口 + fallback 隔离 + provider 健康检查
+  e2e: mock provider 30 轮 + 真 provider 30 轮 + 评分 8 维度全产出
+
+learned_from:
+  - commit: phase-14-2-r49598
+  - file: tests/stress/phase-14-2-30rounds.sh
+  - subagent_review: 2026-07-15-137 (独立评审报告)

@@ -1,0 +1,10 @@
+{
+  "round": 24,
+  "user_say": "\u9047\u5230\u8fc7 ISR \u9891\u7e41\u6536\u7f29\u7684\u95ee\u9898\u5417",
+  "ai_say": "\u8bf7\u7ee7\u7eed\u4ecb\u7ecd\u60a8\u7684\u9879\u76ee\u3002",
+  "ai_chars": 10,
+  "http": 200,
+  "time_sec": 60,
+  "is_finish": false,
+  "is_ai_error": 0
+}

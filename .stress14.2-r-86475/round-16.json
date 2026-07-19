@@ -1,0 +1,12 @@
+{
+  "round": 16,
+  "user_say": "\u5206\u5e03\u5f0f\u9501\u5728 Redis \u4e3b\u4ece\u5207\u6362\u65f6\u53ef\u80fd\u5931\u6548",
+  "ai_say": "",
+  "ai_error": "{\"code\": \"STREAM_ERROR\", \"message\": \"[interviewer] AI \u8f93\u51fa\u975e JSON: {\\\"question\\\":\\\"\u4f60\u597d\uff0c\u6b22\u8fce\u6765\u5230\u5b57\u8282\u8df3\u52a8\u540e\u7aef\u5de5\u7a0b\u5e08\u9762\u8bd5\u3002\u8bf7\u5148\u7b80\u5355\u4ecb\u7ecd\u4e00\u4e0b\u4f60\u6700\u8fd1\u505a\u8fc7\u7684\u6700\u6709\u6280\u672f\u6311\u6218\u7684\u9879\u76ee\uff1f\\\",\\\"dimension\\\":\\\"project\\\",\"}",
+  "ai_chars": 0,
+  "http": 200,
+  "time_sec": 6,
+  "is_finish": false,
+  "is_biz_ok": 0,
+  "is_ai_error": 1
+}

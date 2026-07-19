@@ -50,22 +50,20 @@ describe('/api/health — Bug B3 修复固化', () => {
     process.env.MINIMAX_API_KEY = 'test-key';
     process.env.OPENROUTER_API_KEY = 'test-key';
 
-    const res = await GET();
+    const res = (await GET()) as unknown as { body: Record<string, unknown>; status: number };
     expect(res.status).toBe(200);
-    const body = res.body as Record<string, unknown>;
-    expect(body.ok).toBe(true);
-    expect(body.db).toBe('up');
-    expect((body.ai as { enabled: string[] }).enabled).toContain('minimax');
-    expect(body.warn).toBeUndefined();
+    expect(res.body.ok).toBe(true);
+    expect(res.body.db).toBe('up');
+    expect((res.body.ai as { enabled: string[] }).enabled).toContain('minimax');
+    expect(res.body.warn).toBeUndefined();
   });
 
   it('场景 2：DB up + AI 全未配 + USE_MOCK_AI=0 → 200 + ok: true + warn: NO_AI_PROVIDER', async () => {
-    const res = await GET();
+    const res = (await GET()) as unknown as { body: Record<string, unknown>; status: number };
     expect(res.status).toBe(200);
-    const body = res.body as Record<string, unknown>;
-    expect(body.ok).toBe(true);
-    expect(body.db).toBe('up');
-    expect(body.warn).toBe('NO_AI_PROVIDER');
+    expect(res.body.ok).toBe(true);
+    expect(res.body.db).toBe('up');
+    expect(res.body.warn).toBe('NO_AI_PROVIDER');
     // 关键：不应该是 503（B3 修复的核心）
     expect(res.status).not.toBe(503);
   });
@@ -75,31 +73,28 @@ describe('/api/health — Bug B3 修复固化', () => {
 
     process.env.MINIMAX_API_KEY = 'test-key'; // 即使 AI 有配，DB 挂也是 503
 
-    const res = await GET();
+    const res = (await GET()) as unknown as { body: Record<string, unknown>; status: number };
     expect(res.status).toBe(503);
-    const body = res.body as Record<string, unknown>;
-    expect(body.ok).toBe(false);
-    expect(body.db).toBe('down');
+    expect(res.body.ok).toBe(false);
+    expect(res.body.db).toBe('down');
   });
 
   it('场景 4：USE_MOCK_AI=1 + 无真实 provider → 200 + ok: true + 不 warn', async () => {
     process.env.USE_MOCK_AI = '1';
 
-    const res = await GET();
+    const res = (await GET()) as unknown as { body: Record<string, unknown>; status: number };
     expect(res.status).toBe(200);
-    const body = res.body as Record<string, unknown>;
-    expect(body.ok).toBe(true);
-    expect(body.warn).toBeUndefined();
-    expect((body.ai as { mockEnabled: boolean }).mockEnabled).toBe(true);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.warn).toBeUndefined();
+    expect((res.body.ai as { mockEnabled: boolean }).mockEnabled).toBe(true);
   });
 
   it('场景 5：返回 body 不含 PII / secrets / tokens', async () => {
     process.env.MINIMAX_API_KEY = 'super-secret-key-do-not-leak';
     process.env.USE_MOCK_AI = '1';
 
-    const res = await GET();
-    const body = res.body as Record<string, unknown>;
-    const serialized = JSON.stringify(body);
+    const res = (await GET()) as unknown as { body: Record<string, unknown>; status: number };
+    const serialized = JSON.stringify(res.body);
     expect(serialized).not.toContain('super-secret-key-do-not-leak');
     expect(serialized).not.toMatch(/password/i);
     expect(serialized).not.toMatch(/token/i);
@@ -107,9 +102,8 @@ describe('/api/health — Bug B3 修复固化', () => {
   });
 
   it('场景 6：DB latency 数字有效（> 0 且 < 5s）', async () => {
-    const res = await GET();
-    const body = res.body as Record<string, unknown>;
-    const latency = body.dbLatencyMs as number;
+    const res = (await GET()) as unknown as { body: Record<string, unknown>; status: number };
+    const latency = res.body.dbLatencyMs as number;
     expect(latency).toBeGreaterThanOrEqual(0);
     expect(latency).toBeLessThan(5000);
   });

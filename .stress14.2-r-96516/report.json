@@ -1,0 +1,76 @@
+{
+  "ok": true,
+  "data": {
+    "report": {
+      "id": "cmrm02yfr005cuuv4heu1tbpq",
+      "interviewId": "cmrlzwt7m0005uuv4i1fcx766",
+      "totalScore": 75,
+      "dimensionScores": { "algo": 75, "cs": 75, "culture": 75, "project": 75, "sysdesign": 75 },
+      "improvements": [
+        "强化向量检索（HNSW/IVF）落地经验",
+        "补充 P0 oncall 实际案例",
+        "HTTPS 证书链与 TLS 1.3 握手过程需要更深入"
+      ],
+      "cohortRank": null,
+      "cohortPercentile": null,
+      "generatedAt": "2026-07-15T11:32:06.615Z",
+      "agentScores": [
+        {
+          "id": "cmrm031le005duuv4a8zkmgsi",
+          "reportId": "cmrm02yfr005cuuv4heu1tbpq",
+          "agentName": "scorer:algo",
+          "agentVersion": "1.0.0",
+          "totalScore": 75,
+          "dimensionScores": { "algo": 75 },
+          "reasoning": "候选人对推荐系统架构理解扎实，能讲清 Flink watermark、Kafka ISR 机制；系统设计分层清晰但召回层细节欠打磨。",
+          "durationMs": 0,
+          "createdAt": "2026-07-15T11:32:06.615Z"
+        },
+        {
+          "id": "cmrm031le005euuv4785azk06",
+          "reportId": "cmrm02yfr005cuuv4heu1tbpq",
+          "agentName": "scorer:cs",
+          "agentVersion": "1.0.0",
+          "totalScore": 75,
+          "dimensionScores": { "cs": 75 },
+          "reasoning": "候选人对推荐系统架构理解扎实，能讲清 Flink watermark、Kafka ISR 机制；系统设计分层清晰但召回层细节欠打磨。",
+          "durationMs": 0,
+          "createdAt": "2026-07-15T11:32:06.615Z"
+        },
+        {
+          "id": "cmrm031le005fuuv4nxv31qb4",
+          "reportId": "cmrm02yfr005cuuv4heu1tbpq",
+          "agentName": "scorer:project",
+          "agentVersion": "1.0.0",
+          "totalScore": 75,
+          "dimensionScores": { "project": 75 },
+          "reasoning": "候选人对推荐系统架构理解扎实，能讲清 Flink watermark、Kafka ISR 机制；系统设计分层清晰但召回层细节欠打磨。",
+          "durationMs": 0,
+          "createdAt": "2026-07-15T11:32:06.615Z"
+        },
+        {
+          "id": "cmrm031le005guuv432qy12rx",
+          "reportId": "cmrm02yfr005cuuv4heu1tbpq",
+          "agentName": "scorer:sysdesign",
+          "agentVersion": "1.0.0",
+          "totalScore": 75,
+          "dimensionScores": { "sysdesign": 75 },
+          "reasoning": "候选人对推荐系统架构理解扎实，能讲清 Flink watermark、Kafka ISR 机制；系统设计分层清晰但召回层细节欠打磨。",
+          "durationMs": 0,
+          "createdAt": "2026-07-15T11:32:06.615Z"
+        },
+        {
+          "id": "cmrm031le005huuv4awthehry",
+          "reportId": "cmrm02yfr005cuuv4heu1tbpq",
+          "agentName": "scorer:culture",
+          "agentVersion": "1.0.0",
+          "totalScore": 75,
+          "dimensionScores": { "culture": 75 },
+          "reasoning": "候选人对推荐系统架构理解扎实，能讲清 Flink watermark、Kafka ISR 机制；系统设计分层清晰但召回层细节欠打磨。",
+          "durationMs": 0,
+          "createdAt": "2026-07-15T11:32:06.615Z"
+        }
+      ]
+    }
+  }
+}

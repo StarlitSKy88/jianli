@@ -2,7 +2,7 @@ id: bug-2026-07-15-006
 title: Resume 上传在 dedup 检查 race condition 时返回 500（P2002）
 category: bug
 severity: high
-tags: [prisma, p2002, race-condition, resume, upload, dedup]
+tags: [prisma, p2002, race-condition, resume, upload, dedup, schema-migration]
 created_at: 2026-07-15
 project: interview-buddy
 
@@ -17,32 +17,76 @@ problem: |
 
   复现：连续两次 curl 上传同 hash 文件，第二次 500。
 
+  进阶根因（Phase 13.8 发现）：
+  - fileHash @unique 是**全局唯一**，不是 per-user
+  - 不同 user 上传相同内容（同一份简历模板）会冲突
+  - 即使 catch P2002 接住了，race recovery 按 (userId, fileHash) 复合查 → miss → throw 500
+  - 必须把 schema 全局唯一改成 per-user 复合唯一
+
 solution: |
-  修法 1（生产环境）：用 prisma upsert 替代 create + dedup 查询
-  ```typescript
-  const existing = await prisma.resume.findFirst({ where: { fileHash } });
-  if (existing) return successResponse({ resume: existing, deduplicated: true });
-  // ...
-  await prisma.resume.create({ data: { ... } });  // ← 这里 race condition
-  ```
-  → 改为：
-  ```typescript
-  await prisma.resume.upsert({
-    where: { fileHash_userId: { fileHash, userId } },  // 需要复合唯一键
-    create: { ... },
-    update: {},  // 不更新
-  });
-  ```
-  → 或者用 try/catch 捕获 P2002，再 fallback 读取已存在记录。
+  修法（生产环境）：复合唯一 + race 恢复按 (userId, fileHash) 复合查询
 
-  修法 2（应急）：去掉 fileHash 唯一键，只保留 (userId, fileHash) 索引
+  ```sql
+  -- migration: 20260715130000_resume_per_user_dedup/migration.sql
+  DROP INDEX `resumes_fileHash_key` ON `resumes`;
+  CREATE UNIQUE INDEX `userId_fileHash_unique` ON `resumes`(`userId`, `fileHash`);
+  ```
 
-  当前状态：未修复。压测脚本已用唯一 hash 内容绕过。
+  ```prisma
+  // prisma/schema.prisma
+  model Resume {
+    // ... fields
+    @@unique([userId, fileHash], name: "userId_fileHash_unique")
+    @@index([fileHash])  // 性能保留（虽然不再唯一）
+  }
+  ```
+
+  ```typescript
+  // app/api/resume/upload/route.ts — race recovery 也按 (userId, fileHash) 复合查询
+  catch (e) {
+    if ((e as { code?: string })?.code === 'P2002') {
+      const existing = await prisma.resume.findFirst({
+        where: { userId: session.userId, fileHash },
+        select: { id: true, name: true, yearsOfExperience: true, createdAt: true },
+      });
+      if (existing) return successResponse({ resume: existing, deduplicated: true });
+    }
+    throw e;
+  }
+  ```
+
+  为什么之前 catch 接住了 P2002 但仍 500：
+  - 错误代码是 P2002 ✅ catch 接住
+  - 重读按 (userId, fileHash) 复合查询 ✅
+  - **但 user B 的 fileHash 已被 user A 占用 → B 用自己的 userId 查不到 → 重读失败 → throw**
+  - 必须把 schema 全局唯一改成 (userId, fileHash) 复合唯一，B 才能在自己 user 内 dedup
 
 verification:
-  manual: 连续两次 curl 上传同 hash 文件 → 第二次 500（待修复）
-  stress: stress script 用 mktemp 每次生成唯一内容绕过（22/22 通过）
+  manual: |
+    tests/stress/phase-13-8-resume-dedup-race.sh (4/4 passed)
+    - User A 上传 → 200 + resumeId_A
+    - User B 上传同 hash（不同 user）→ 200 + resumeId_B（独立的！）✅
+    - User A 重复上传 → 200 + deduplicated=true ✅
+    - 不再是 HTTP 500
+  integration: |
+    TiDB 数据库 migration `20260715130000_resume_per_user_dedup` 已应用
+    - DROP resumes_fileHash_key
+    - CREATE userId_fileHash_unique ON (userId, fileHash)
+  vitest: |
+    113/113 passed（含新增 mock-dimension-scoring 5 测试）
+    type-check 0 errors
 
 learned_from:
+  - commit: Phase 13.8 (#134) 2026-07-15
   - file: app/api/resume/upload/route.ts
-  - commit: 待修复
+  - file: prisma/schema.prisma
+  - file: prisma/migrations/20260715130000_resume_per_user_dedup/migration.sql
+
+anti_pattern: |
+  ❌ 全局唯一 @unique 不区分 owner
+  ❌ catch P2002 后按 (owner, ...) 复合查询但全局唯一不允许复合 dedup
+  ❌ 压测用 mktemp 绕过 race condition 测试（22/22 通过但 bug 真实存在）
+
+  ✅ Per-owner 复合唯一 @@unique([owner, hash])
+  ✅ race recovery 按复合键查询（与 unique 一致）
+  ✅ 压测包含"不同用户相同内容"场景

@@ -1,0 +1,69 @@
+id: bug-2026-07-15-010
+title: OpenRouter free 模型 quota 402 触发整机 AI 失败（已修复：内部 4 层 fallback）
+category: bug
+severity: high
+tags: [openrouter, fallback, 402, insufficient-balance, ai-router, free-tier]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 13.6 端到端冒烟：调用真实 OpenRouter AI 默认模型 `tencent/hy3:free`
+  返回 HTTP 402 "Insufficient Balance"，整条对话直接失败。
+
+  根因：OpenRouter 不同 free 模型配额是独立的（每分钟/每天/quota），
+  hy3 被消耗不会影响其他模型。但 router 只让 openrouter 一个 provider
+  失败就 降级到下一个 provider（minimax/claude/deepseek），而这些没配 key
+  → "全部 AI provider 失败"。
+
+  影响：单点依赖 OpenRouter 的一个模型，quota 一耗尽真用户全黑屏。
+
+solution: |
+  在 `lib/ai/providers/openrouter.ts` 内部实现 free 模型 failover 队列：
+
+  ```ts
+  const fb = process.env.OPENROUTER_FALLBACK_MODELS
+    ?? 'openai/gpt-oss-20b:free,google/gemma-4-26b-a4b-it:free,cohere/north-mini-code:free,nvidia/nemotron-nano-9b-v2:free';
+  // 循环尝试 default + fallback，遇到 402/429/noChoice/emptyContent/throw 跳过到下一个
+  ```
+
+  行为：
+  - 任一个模型成功 → 立即返回
+  - 全部失败 → throw "all models failed: hy3=402; gpt-oss=429; ..."
+  - 上层 ai-router 仍能 fail-fast 到 minimax/claude/deepseek（如果配置了 key）
+
+  实测 2026-07-15 当前可用 free 模型：
+  | model | 状态 |
+  |-------|------|
+  | tencent/hy3:free | 经常 402 |
+  | meta-llama/llama-3.1-8b-instruct:free | 404 not-found |
+  | deepseek/deepseek-r1:free | 404 unavailable for free |
+  | qwen/qwen3-coder:free | 429 rate-limited |
+  | google/gemini-2.0-flash-exp:free | 404 no endpoints |
+  | openai/gpt-oss-20b:free | ✅ 200 |
+  | google/gemma-4-26b-a4b-it:free | ✅ 200 |
+  | cohere/north-mini-code:free | ✅ 200 |
+  | nvidia/nemotron-nano-9b-v2:free | ✅ 200 |
+  | qwen/qwen3-next-80b-a3b-instruct:free | 429 rate-limited |
+
+  所以 fallback 队列挑这 4 个稳定的 + hy3 当 default。
+
+verification:
+  manual: |
+    - 单独 curl 测 5 个 fallback 都返回 200
+    - phase-13-6-real-ai-quick.sh 端到端：HTTP 200，不再 402
+  vitest: |
+    115 tests passed（新增 2 个 Phase 13.6 容错测试）
+
+learned_from:
+  - date: Phase 13.6 (2026-07-15)
+  - file: lib/ai/providers/openrouter.ts
+
+anti_pattern: |
+  ❌ 依赖单一 free 模型（hy3 quota 用了就崩）
+  ❌ router 只 fail-fast 到下一个 provider（minimax/claude 没配 key → 全失败）
+  ❌ 把 "OpenRouter quota 耗尽" 当 transient 错误重试同一个模型
+
+  ✅ OpenRouter provider 内部维护 fallback 队列，按顺序跳过 quota/429/404
+  ✅ Default = 主推（hy3），fallback = 4 个稳定验证过的 free
+  ✅ 用环境变量 OPENROUTER_FALLBACK_MODELS 灵活配置
+  ✅ 同样的失败模式：minimax/claude/deepseek 内部也应该各自带 fallback

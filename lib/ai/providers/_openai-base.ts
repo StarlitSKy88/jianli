@@ -41,8 +41,16 @@ export class OpenAiCompatible implements AiProvider {
     });
     const choice = r.choices[0];
     if (!choice) throw new Error(`[${this.name}] No choice in response`);
+    // P0-5 增强：空 content 也要 throw，触发 ai-router 兜底到下一层
+    // 之前静默返回 '' → interviewer 报 STREAM_ERROR，但 ai-router 看不到失败 → 浪费 30s 超时
+    const content = choice.message?.content || '';
+    if (!content || content.trim().length === 0) {
+      throw new Error(
+        `[${this.name}] Empty content in response (provider quota exhausted or model misbehaving)`
+      );
+    }
     return {
-      content: choice.message?.content || '',
+      content,
       usage: r.usage
         ? {
             promptTokens: r.usage.prompt_tokens,

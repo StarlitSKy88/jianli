@@ -1,0 +1,10 @@
+{
+  "round": 5,
+  "user_say": "Flink \u7684 watermark \u673a\u5236\u80fd\u89e3\u51b3\u4e71\u5e8f\u95ee\u9898",
+  "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"\u5168\u90e8 AI provider \u5931\u8d25\uff1a402 Insufficient Balance\"}",
+  "ai_chars": 81,
+  "http": 200,
+  "time_sec": 23,
+  "is_finish": false,
+  "is_ai_error": 1
+}

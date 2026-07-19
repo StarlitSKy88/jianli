@@ -1,0 +1,10 @@
+{
+  "round": 18,
+  "user_say": "\u4f46 Redlock \u5b9e\u73b0\u590d\u6742\uff0c\u8fd0\u7ef4\u6210\u672c\u9ad8",
+  "ai_say": "\u8bf7\u7ee7\u7eed\u4ecb\u7ecd\u60a8\u7684\u9879\u76ee\u3002",
+  "ai_chars": 10,
+  "http": 200,
+  "time_sec": 32,
+  "is_finish": false,
+  "is_ai_error": 0
+}

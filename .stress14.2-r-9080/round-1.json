@@ -1,0 +1,12 @@
+{
+  "round": 1,
+  "user_say": "\u4f60\u597d\uff0c\u6211\u53eb\u674e\u660e\uff0c\u4eca\u5e7438\u5c81\uff0c\u670910\u5e74\u540e\u7aef\u5f00\u53d1\u7ecf\u9a8c",
+  "ai_say": "\u5e42\u7b49\u6027\u7684\u5b9e\u73b0\u91cc PID + sequence number \u8fd9\u4e2a\u65b9\u6848\uff0cbroker \u7aef OOM \u7684\u98ce\u9669\u4f60\u8bc4\u4f30\u8fc7\u5417\uff1f",
+  "ai_error": "",
+  "ai_chars": 57,
+  "http": 200,
+  "time_sec": 9,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

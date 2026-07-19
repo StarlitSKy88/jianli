@@ -1,0 +1,62 @@
+id: bug-2026-07-15-012
+title: 端到端冒烟脚本的 5 个隐蔽陷阱
+category: bug
+severity: medium
+tags: [stress-test, shell-script, heredoc, prisma, edgeone, prod-validation]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 13.6 真实 AI 冒烟测试阶段踩了一堆脚石，整整 9 次重跑才摸清。
+
+  5 个隐蔽陷阱，每个 trap 都让脚本"看起来坏但其实代码坏"：
+
+  1. **scenario 角色大写 → grep cuids 不匹配**
+     - prisma 里 scenario.role = `'backend'`（小写），不是 `'BACKEND'`
+     - 之前 grep 没匹配上 → scenario id 空 → interview create 用空 scenario
+
+  2. **heredoc 用 `<<NODE_EOF` 而 `<<JS` 转义 `\\$disconnect`**
+     - zsh 把 `\$disconnect` 直接写成 `$.disconnect` → SyntaxError
+     - 必须用 `<<'NODE_EOF'` single-quoted（禁用所有 substitution）
+
+  3. **heredoc 写到 /tmp 而非项目内**
+     - /tmp 下找不到 node_modules/@prisma/client → MODULE_NOT_FOUND
+     - 解决：脚本 cwd 必须在项目根（`bash tests/...`），或 RES_DIR 用项目内路径
+
+  4. **register 期望 `scenarioId/resumeId`，实际路由是 `company/role/level/resumeId`**
+     - send `scenarioId` → zod 校验失败 → IV 空 → URL `/api/interview//message`
+     - Next.js 把 `//` normalize 成 `/`，触发 308 redirect
+
+  5. **seed 写 passwordHash 误触 EMAIL_TAKEN**
+     - seed upsert 用 `passwordHash: hash` update → 已注册 user 被覆盖
+     - register 路由 `existing.passwordHash.length > 0` → EMAIL_TAKEN
+     - 正确：seed 用 `passwordHash: ''`（占位），register 真流程自己 hash
+
+solution: |
+  把这次 9 次迭代收获固化到 `tests/stress/phase-13-6-real-ai-quick.sh`：
+  - 改用 zod schema 的真实字段 `company/role/level/resumeId`
+  - seed 只刷 `verifyCode/verifyExpiry`，create 时 `passwordHash: ''`
+  - 注册失败自动转 login + 校验 cookie 行数
+  - scenario 用 `company|role|level` 三段输出
+  - grep cuid 加 `{20,}` 限长度防错配
+
+verification:
+  manual: |
+    第 9 次跑 phase-13-6-real-ai-quick.sh：通过率 2/3
+    （剩 1 个失败是因为 streaming 输出 JSON 容错，下次迭代）
+
+learned_from:
+  - date: Phase 13.6 (2026-07-15)
+  - file: tests/stress/phase-13-6-real-ai-quick.sh
+  - file: .knowledge/bugs/2026-07-15-006-resume-dedup-prisma-p2002.yaml (类似的 script bug reflection)
+
+anti_pattern: |
+  ❌ stress-test 脚本靠 try-and-error 调试 9 次
+  ❌ 用 heredoc 写 Node 脚本时不注意 escaping
+  ❌ 把脚本 res 写到 /tmp 失去 node_modules
+  ❌ 不查真实路由 schema 就猜字段名
+
+  ✅ 第一次失败先看真实 zod schema（route 文件顶部注释 + Body schema 定义）
+  ✅ heredoc 统一用 `<<'TAG'` single-quoted 防 substitution
+  ✅ RES_DIR 用项目内相对路径（`./.stress13.6-r-$$`）
+  ✅ 写出详细的 $stage debug 行：seed 输出 / register 输出 / cookie 行数

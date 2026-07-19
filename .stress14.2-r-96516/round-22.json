@@ -1,0 +1,12 @@
+{
+  "round": 22,
+  "user_say": "Kafka \u7684 ISR \u673a\u5236\u4fdd\u8bc1\u6570\u636e\u4e0d\u4e22",
+  "ai_say": "HTTPS \u7684\u63e1\u624b\u8fc7\u7a0b\u80fd\u8be6\u7ec6\u8bb2\u8bb2\u5417\uff1f\u4e2d\u95f4\u4eba\u653b\u51fb\u600e\u4e48\u9632\u5fa1\uff1f",
+  "ai_error": "",
+  "ai_chars": 28,
+  "http": 200,
+  "time_sec": 7,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

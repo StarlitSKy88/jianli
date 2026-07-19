@@ -1,0 +1,9 @@
+{
+  "round": 10,
+  "user_say": "\u8fd9\u6837\u80fd\u625b\u4f4f\u70ed\u70b9 key \u7684\u8bbf\u95ee\u538b\u529b",
+  "ai_say": "\u8bf7\u7ee7\u7eed\u4ecb\u7ecd\u60a8\u7684\u9879\u76ee\u3002",
+  "ai_chars": 10,
+  "http": 200,
+  "time_sec": 40,
+  "is_finish": false
+}

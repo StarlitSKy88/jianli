@@ -1,0 +1,64 @@
+id: bug-2026-07-15-009
+title: Mock AI provider 评分返回固定 75 分，未按维度差异化
+category: bug
+severity: high
+tags: [mock, ai-provider, scoring, test-quality, subagent-review]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  Phase 14.4 新增的 mock AI provider (lib/ai/providers/mock.ts) 用于隔离真实 AI quota 耗尽问题。
+  评分模式 (callCount > 30) 时返回固定的 MOCK_SCORE_RESPONSE：
+    { score: 75, evidence: '统一文本', suggestions: [...] }
+
+  这导致 byte 公司 5 个评分维度 (algo/cs/project/sysdesign/culture) 全部返回 75 分（数据库验证），
+  唯一分数数 = 1。
+
+  Subagent 评审 (8.0/10) 发现的 P0 问题：mock 评分遮蔽了真实 P0 修复效果
+  - 测试通过 ≠ 业务正确
+  - 所有维度都是同一个分数 → 评分 prompt 是否真的传入维度？完全无法验证
+
+solution: |
+  改为按 system prompt 中的维度关键词返回差异化分数：
+
+  1. 用正则从 system prompt 提取维度：
+     `const m = systemPrompt.match(/评分维度[：:]\s*(\w+)/);`
+
+  2. 用 Record<Dimension, MockScoreResponse> 维护维度→评分的映射：
+     - tech: 82 (技术深度)
+     - project: 78 (项目经验)
+     - sysdesign: 72 (系统设计)
+     - algo: 76 (算法)
+     - cs: 80 (计算机基础)
+     - culture: 74 (文化匹配)
+     - star: 77 (STAR 故事)
+     - pressure: 68 (抗压能力)
+
+  3. 每个维度的 evidence / suggestions 都是独立的人工撰写内容
+
+  关键设计：用 system prompt 维度关键词匹配（而不是 callCount 阈值），
+  这样无论 scorer 在哪个时序调用，都能返回正确维度的评分。
+
+verification:
+  unit: |
+    tests/unit/mock-dimension-scoring.test.ts (5/5 passed)
+    - 30 个不同问题（不重复）
+    - 8 个维度评分互不相同（至少 6 个 unique score）
+    - 8 个维度的 evidence 字符串互不相同
+  integration: |
+    - byte company Report agentScore 在数据库中仍是 75（Phase 14.4 之前生成的）
+    - 新调用 USE_MOCK_AI=1 后会得到差异化分数（待真实跑 30 轮 + finish 验证）
+  e2e: |
+    - byte 维度 unique count > 5（修复前 = 1）
+
+learned_from:
+  - commit: Phase 14.4 (mock provider 初版)
+  - file: lib/ai/providers/mock.ts
+  - related: .knowledge/bugs/2026-07-15-008-phase14-p0-fixes.yaml
+
+anti_pattern: |
+  Mock 测试覆盖"接口调用成功"，但不验证"输入输出是否真的传到下游"。
+  必须验证：mock 的输入包含了下游关心的关键参数（如 dimension），且输出能区分这些参数。
+
+  ❌ 反例：所有维度返回同一个固定值（虽然每个调用都"成功"）
+  ✅ 正例：每个维度返回不同的值（如果输入维度不同，输出就应该不同）

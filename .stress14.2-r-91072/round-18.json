@@ -1,0 +1,12 @@
+{
+  "round": 18,
+  "user_say": "\u4f46 Redlock \u5b9e\u73b0\u590d\u6742\uff0c\u8fd0\u7ef4\u6210\u672c\u9ad8",
+  "ai_say": "TCP \u4e09\u6b21\u63e1\u624b\u80fd\u8be6\u7ec6\u8bf4\u4e0b\u5417\uff1f\u4e3a\u4ec0\u4e48\u4e0d\u662f\u4e24\u6b21\uff1f",
+  "ai_error": "",
+  "ai_chars": 23,
+  "http": 200,
+  "time_sec": 9,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

@@ -2,7 +2,7 @@
 
 > **核心哲学**：修完 bug 就固化解法 — 让系统越用越聪明
 > **本文件是项目的"大脑"，每次重大决策后必须更新**
-> **最后更新**：2026-07-14 (Phase 8.3 完成)
+> **最后更新**：2026-07-16 (Phase 14.22 完成 — EdgeOne Pages prisma 真实环境跑通)
 
 ---
 
@@ -320,6 +320,7 @@ pnpm env-check          # 环境变量检查
 | Phase 13.8 Resume dedup P2002 race | ✅ 完成（2026-07-15） | #134 race condition 修复：schema 改为 (userId, fileHash) 复合唯一（migration 20260715130000_resume_per_user_dedup），race recovery 按 (userId, fileHash) 复合查询。tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed**（A 上传 → B 跨用户上传 → A 重复上传去重）。bug-006 已更新为完整 solution |
 | Phase 13.5 客服通道接入 | ✅ 完成（2026-07-15） | feedbacks 表（migration 20260715140000）+ FeedbackWidget 全局浮窗（app/components/FeedbackWidget.tsx，注入 layout）+ POST /api/feedback（防刷三件套 + 邮件通知）+ lib/email/feedback-notification（HTML escape + 截断） + docs/SUPPORT.md。13 单测全过（6 邮件 + 7 API），dev server 实地 POST 200 写 TiDB cuid 成功。128/128 vitest 全过 + 0 type errors + 0 new warnings |
 | Sprint 1 上线 Gap 收尾 | ✅ 完成（2026-07-15） | 5 项任务全过：**G2 埋点对齐 PRD**（signup_complete/resume_uploaded/interview_started/interview_completed/payment_success；旧名 register_success/interview_start/interview_finish 全 rename + 19 事件白名单 + rate-limit-track 单测同步）+ **G9 Cookie 安全**（lib/auth/cookie.ts 抽出 setAuthCookie/clearAuthCookie）+ **G7 SEO**（app/sitemap.ts + app/robots.ts 约定生成 + layout metadataBase）+ **G3 SES 邮件**（lib/email/ses-sender.ts nodemailer + EMAIL_SENDER_MODE 切换 + 4 单测 + docs/EMAIL_SETUP.md + scripts/edgeone-inject-env.ts）。**Build**：132/132 vitest + 0 type errors + 0 lint warnings；routes 21→23（+sitemap.xml +robots.txt）；**MVP 状态**：5 Gap 修 4，G1 微信支付 + G4 admin 反馈页按决策延后 |
+| Phase 14.22 EdgeOne Pages 128MiB 部署上限终极根因 | ✅ 完成（2026-07-16） | **真凶**：EdgeOne Pages cloud-functions 制品 128MiB 硬上限，build 145MiB 超限 → 「构建状态 ✅ 成功」+「错误日志 ❌ Cloud SSR Node functions package size exceeds 128MiB limit (145MiB)」**同时存在**（默认折叠错误日志，UI 误导）。Phase 14.6–14.21 共 6 个迭代的 prisma 修复（bug-013/014/015/016/017）从未真正部署过。**修复（commit 277bd1c）**：binaryTargets 精简 `["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]` + 同步精简 `outputFileTracingIncludes` + `cloudFunctions.includeFiles`，build 145MiB → 110MiB。**验证**：`curl /api/test-helper/diagnose-prisma-direct` 返回 `{"ok":true,"prismaVersion":"5.20.0","engineQuery":{"success":true,"error":null,"userCount":0}}` ✅ prod 真实环境 `prisma.user.findUnique()` 跑通。**固化**：bug-018-edgeone-pages-128mib-size-limit.md（5-step 部署前必查 + 5-step 部署后必查），部署文档 § 9.2 加 ⛔ 条目 |
 
 ### 当前质量基线
 
@@ -333,7 +334,7 @@ pnpm env-check          # 环境变量检查
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
 | 静态页面 | 7 个（**+2**：/sitemap.xml /robots.txt 约定生成） |
 | 动态 API 路由 | 22 个（Login/Logout/Register/SendCode/Reset/VerifyCode/Feedback + Interview×3 + Payment×2 + Resume×2 + Admin×5 + Test×3）|
-| 知识卡 | patterns **10** + bugs 11 + recipes **2** = 23 张（Sprint 1 +4） |
+| 知识卡 | patterns **10** + bugs **18** + recipes **2** = 30 张（Phase 14.22 + bug-018 终极根因） |
 | First Load JS（首页）| 87.2 kB |
 | Phase 14.4 mock 30 轮 | **30/30 = 100% 业务成功率**，8 维度评分入库 |
 | Phase 14.5 mock 维度差异化 | byte 5 维度评分 **unique ≥ 6**（修复前 = 1） |
@@ -341,6 +342,7 @@ pnpm env-check          # 环境变量检查
 | Resume dedup race | tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed** |
 | Sprint 1 上线 Gap | 5 项全过 ✅（G2 埋点 / G7 SEO / G9 Cookie / G3 SES）+ Phase 14.6 Prisma engine 修复（bug-013）|
 | EdgeOne 部署准备 | ✅ Phase 14.6 Prisma binaryTargets + send-verify-code 顶层 try/catch 暴露 message |
+| EdgeOne 128MiB 修复 | ✅ Phase 14.22 — bug-018 终极根因 + 277bd1c 三件套精简 + prod 验证 engineQuery.success=true |
 
 ### 部署就绪
 
@@ -365,3 +367,4 @@ pnpm env-check          # 环境变量检查
 - **2026-07-15 — Phase 14.5**：Subagent 评审 P0 #142 修复完成。**根因**：mock 之前所有评分维度调用 callCount 阈值切换模式，且固定返回 `{score: 75, ...}`，数据库验证 byte 5 维度 unique=1（algo=cs=project=sysdesign=culture=75）。**修复**：`extractDimensionFromSystem()` 正则提取 system prompt 中的 `评分维度：${dim}` 关键词，按 `Record<Dimension, MockScoreResponse>` 返回 8 个独立的人工撰写 score/evidence/suggestions（tech:82/project:78/sysdesign:72/algo:76/cs:80/culture:74/star:77/pressure:68）。**验证**：tests/unit/mock-dimension-scoring.test.ts（5/5 passed）+ 数据库 byte unique ≥ 6。**固化**：bug-009-mock-scoring-not-dimension-aware.yaml。
 - **2026-07-15 — Phase 14.6**：EdgeOne Pages 部署 Prisma engine missing 修复完成。**根因**：prisma/schema.prisma generator client 缺 binaryTargets，默认只生成 native binary（darwin-arm64），EdgeOne Pages 是 Amazon Linux 2 容器找不到匹配 engine → throw "could not locate Query Engine for runtime rhel-openssl-1.1.x"。**修复**：schema.prisma 加 binaryTargets = ["native", "darwin-arm64", "linux-musl-openssl-3.0.x", "rhel-openssl-3.0.x"]，`pnpm prisma generate` 验证 3 个 engine binary 全部生成。**关键辅助**：send-verify-code 路由顶层 try/catch 暴露真凶 message 到 response body（commit 7f666fd），是定位根因的唯一通道。**验证**：132/132 vitest + 0 type errors，commit aa374f3 push，等 EdgeOne rebuild + 用户浏览器重测。**固化**：bug-013-prisma-both-binary-engine.yaml（含 4-target 标配 + debugging_trace + deploy_lesson 3 件必做）。
 - **2026-07-16 — Phase 14.10**：EdgeOne CDN cache stale 真相。**五阶根因（终极）**：用户手动 rebuild 后 EdgeOne 部署详情显示 ✅ 成功（02:31:59），但 curl 看到 Date header 还是昨天（Wed, 15 Jul 2026 18:45），sitemap lastmod + webpack hash 全是昨天 build。**真凶**：EdgeOne Pages build pipeline 和 CDN propagation 是两个异步过程，build 成功 ≠ CDN 同步。**EdgeOne 实时日志揭示真相**：send-verify-code 实际返回 400（TURNSTILE_FAILED，10ms，Nodejs20.19 runtime），prisma binary 修复早就生效了——但**用户浏览器缓存了 24 小时前的 500 响应**。**修复**：手动 purge cache。**教训（最沉痛）**：之前 5 个迭代（13/14/15/16/17）有 3 个其实是误诊（13/14/15 改 schema/config 是真的部署后的预防，但本次 prisma 错其实早就修好）。**铁律**：prod 5xx 第一时间查 EdgeOne 实时日志（请求 ID），不要相信浏览器显示。**固化**：bug-017-edgeone-cdn-cache-stale.md（含 5-step checklist：Date/lastmod/webpack hash/API 探针/端到端）。
+- **2026-07-16 — Phase 14.22**：EdgeOne Pages 128MiB 部署上限（终极根因）。**真相大白**：EdgeOne Pages cloud-functions 制品 128MiB 硬上限，build 145MiB 超限 → 「构建状态 ✅ 成功」 + 「错误日志 ❌ Cloud SSR Node functions package size exceeds 128MiB limit (145MiB)」**两个字段同时存在但 UI 默认折叠错误日志**。Phase 14.6–14.21 共 6 个迭代所有 prisma 修复从未真正部署过（cloud-functions 制品根本没生成 → 诊断 API 也 404 → prod 始终跑旧 build）。**修复（commit 277bd1c）**：binaryTargets 精简到 `["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]`（删 darwin-arm64 + linux-musl-openssl-3.0.x 节省 ~62MB），同步精简 `outputFileTracingIncludes` + `cloudFunctions.includeFiles`，build 145MiB → 110MiB。**验证**：`/api/test-helper/diagnose-prisma-direct` 返回 `engineQuery.success: true` ✅ prod 真实环境 `prisma.user.findUnique()` 跑通。**铁律（部署详情第一动作）**：永远先点 EdgeOne 控制台「错误日志」tab，即使「构建状态」显示 ✅；API 404 → cloud-functions 制品缺失，不是路径错误。**固化**：bug-018-edgeone-pages-128mib-size-limit.md（5 部署前必查 + 5 部署后必查），docs/EDGEONE_DEPLOY.md § 9.2 加 ⛔ 条目。

@@ -1,0 +1,9 @@
+{
+  "round": 21,
+  "user_say": "Kafka \u5728\u6211\u4eec\u9879\u76ee\u91cc\u625b\u65e5\u5747\u5343\u4ebf\u7ea7\u6d88\u606f",
+  "ai_say": "\u8bf7\u7ee7\u7eed\u4ecb\u7ecd\u60a8\u7684\u9879\u76ee\u3002",
+  "ai_chars": 10,
+  "http": 200,
+  "time_sec": 33,
+  "is_finish": false
+}

@@ -1,0 +1,12 @@
+{
+  "round": 5,
+  "user_say": "Flink \u7684 watermark \u673a\u5236\u80fd\u89e3\u51b3\u4e71\u5e8f\u95ee\u9898",
+  "ai_say": "\u6d88\u606f\u961f\u5217\u9009\u578b\u4e0a\uff0cKafka \u548c RocketMQ \u4f60\u4f1a\u600e\u4e48\u53d6\u820d\uff1f\u4e3a\u4ec0\u4e48\uff1f",
+  "ai_error": "",
+  "ai_chars": 36,
+  "http": 200,
+  "time_sec": 7,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

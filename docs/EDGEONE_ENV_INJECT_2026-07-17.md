@@ -49,8 +49,19 @@ curl -s https://jianli.taomyst.top/api/test-helper/diagnose-prisma-direct
 # 期望: 404 (ENABLE_TEST_HELPERS 应该设为 0 或删除)
 ```
 
-## 📌 待您决定
+## ✅ 决策已落定（2026-07-20 MVP 上线）
 
-1. **关闭 ENABLE_TEST_HELPERS=1**？（prod 上线稳定后建议关，防止 debug 端点被滥用）
-2. **关闭 USE_MOCK_AI=1**？（已添加 OpenRouter，建议关 mock 让 ai-router 走真实 provider）
-3. **保留 DISABLE_TURNSTILE=1 多久？**（按您要求保留 1 周至 2026-07-24）
+| 决策项 | 当前 prod 状态 | 实操 | 验证（curl）|
+|---|---|---|---|
+| **ENABLE_TEST_HELPERS** | ✅ 已关闭（unset 状态） | EdgeOne 控制台无需操作（没设就是关）；如设了请**删除** | `/api/test-helper/diagnose-env` → **404 Not Found** ✅ |
+| **USE_MOCK_AI** | ✅ 已关闭（unset 状态） | EdgeOne 控制台无需操作（没设就是关） | `/api/health` → `mockEnabled: false` ✅ |
+| **DISABLE_TURNSTILE=1** | 🟡 保留至 **2026-07-24** | 到点后从 EdgeOne env 删除，Turnstile 真实生效 | 2026-07-24 cron 检查 |
+
+## 📌 SOP（已固化为 bug-020）
+
+> 任何 debug endpoint 上 prod 前都要做**开-验-关**三步：
+> 1. **开**：EdgeOne env 设置 `ENABLE_TEST_HELPERS=1`
+> 2. **验**：`curl /api/test-helper/diagnose-env` 看到 `200 + env 完整`
+> 3. **关**：用完**立刻删 env**（不留到生产时段，避免被滥用）
+>
+> 详见 `.knowledge/bugs/2026-07-20-bug-020-prod-env-verification.md`

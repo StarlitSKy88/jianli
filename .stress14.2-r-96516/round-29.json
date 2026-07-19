@@ -1,0 +1,12 @@
+{
+  "round": 29,
+  "user_say": "\u804a\u4e00\u4e0b\u4f60\u7684\u804c\u4e1a\u89c4\u5212\uff0c35+ \u4e4b\u540e\u600e\u4e48\u8d70",
+  "ai_say": "\u5982\u679c\u7ed9\u4f60 offer\uff0c\u4f60\u6700\u5feb\u4ec0\u4e48\u65f6\u5019\u80fd\u5165\u804c\uff1f",
+  "ai_error": "",
+  "ai_chars": 22,
+  "http": 200,
+  "time_sec": 7,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

@@ -1,0 +1,9 @@
+{
+  "round": 9,
+  "user_say": "\u53e6\u4e00\u4e2a\u4f18\u5316\u662f\u5f15\u5165\u672c\u5730\u7f13\u5b58 LRU + \u5206\u5e03\u5f0f\u7f13\u5b58",
+  "ai_say": "\u8bf7\u7ee7\u7eed\u4ecb\u7ecd\u60a8\u7684\u9879\u76ee\u3002",
+  "ai_chars": 10,
+  "http": 200,
+  "time_sec": 61,
+  "is_finish": false
+}

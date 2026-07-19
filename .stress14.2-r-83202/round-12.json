@@ -1,0 +1,12 @@
+{
+  "round": 12,
+  "user_say": "\u6d41\u91cf\u503e\u659c\u5728\u76f4\u64ad\u95f4\u548c\u7535\u5546\u79d2\u6740\u5f88\u5e38\u89c1",
+  "ai_say": "",
+  "ai_error": "{\"code\": \"STREAM_ERROR\", \"message\": \"\u5168\u90e8 AI provider \u5931\u8d25\uff1a402 Insufficient Balance\"}",
+  "ai_chars": 0,
+  "http": 200,
+  "time_sec": 32,
+  "is_finish": false,
+  "is_biz_ok": 0,
+  "is_ai_error": 1
+}

@@ -1,0 +1,12 @@
+{
+  "round": 21,
+  "user_say": "Kafka \u5728\u6211\u4eec\u9879\u76ee\u91cc\u625b\u65e5\u5747\u5343\u4ebf\u7ea7\u6d88\u606f",
+  "ai_say": "\u4e8b\u52a1\u7684 ACID \u5206\u522b\u600e\u4e48\u5b9e\u73b0\uff1fredo log \u548c undo log \u5404\u81ea\u7684\u4f5c\u7528\u662f\u4ec0\u4e48\uff1f",
+  "ai_error": "",
+  "ai_chars": 45,
+  "http": 200,
+  "time_sec": 8,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

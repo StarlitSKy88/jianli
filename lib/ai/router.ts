@@ -17,9 +17,10 @@ import { getMinimaxProvider } from './providers/minimax';
 import { getClaudeProvider } from './providers/claude';
 import { getDeepSeekProvider } from './providers/deepseek';
 import { getOpenRouterProvider } from './providers/openrouter';
+import { getMockProvider } from './providers/mock';
 import { withLLMSlot } from './concurrency';
 
-export type ProviderName = 'minimax' | 'claude' | 'deepseek' | 'openrouter';
+export type ProviderName = 'minimax' | 'claude' | 'deepseek' | 'openrouter' | 'mock';
 
 interface RouteEntry {
   name: ProviderName;
@@ -27,6 +28,7 @@ interface RouteEntry {
 }
 
 const PROVIDERS: RouteEntry[] = [
+  { name: 'mock', factory: getMockProvider }, // Phase 14.4: 测试用，USE_MOCK_AI=1 时启用
   { name: 'minimax', factory: getMinimaxProvider },
   { name: 'openrouter', factory: getOpenRouterProvider },
   { name: 'claude', factory: getClaudeProvider },
@@ -64,7 +66,14 @@ export async function aiChat(messages: ChatMessage[], opts?: RouterOptions): Pro
         return result;
       } catch (e) {
         lastErr = e as Error;
-        console.warn(`[ai-router] ${p.name}.chat failed: ${(e as Error).message}`);
+        const msg = (e as Error).message;
+        console.warn(`[ai-router] ${p.name}.chat failed: ${msg}`);
+        // P0-5 修复：余额/配额错误（402/429/insufficient_quota）立即 fail-fast，
+        // 不浪费 30s 超时窗口。短路直接跳到下一个 provider。
+        if (/402|429|insufficient_quota|quota|billing|balance/i.test(msg)) {
+          console.warn(`[ai-router] ${p.name} 余额/配额耗尽，立即降级到下一层`);
+          continue;
+        }
       }
     }
 
@@ -90,7 +99,13 @@ export async function aiStreamChat(
         return await p.streamChat(messages, opts, onChunk);
       } catch (e) {
         lastErr = e as Error;
-        console.warn(`[ai-router] ${p.name}.streamChat failed: ${(e as Error).message}`);
+        const msg = (e as Error).message;
+        console.warn(`[ai-router] ${p.name}.streamChat failed: ${msg}`);
+        // P0-5：余额/配额错误立即降级，避免无意义的 30s 超时等待
+        if (/402|429|insufficient_quota|quota|billing|balance/i.test(msg)) {
+          console.warn(`[ai-router] ${p.name} 余额/配额耗尽，立即降级到下一层`);
+          continue;
+        }
       }
     }
     throw new Error(`全部 AI provider 失败：${lastErr?.message || 'unknown'}`);

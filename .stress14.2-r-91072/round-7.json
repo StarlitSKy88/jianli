@@ -1,0 +1,12 @@
+{
+  "round": 7,
+  "user_say": "\u6211\u5f53\u65f6\u505a\u7684\u4e00\u4e2a\u4f18\u5316\u662f\u628a Redis pipeline \u5316",
+  "ai_say": "Kafka \u7684 ISR \u6536\u7f29\u673a\u5236\u4f60\u5728\u7ebf\u4e0a\u9047\u5230\u8fc7\u5417\uff1f\u5f53\u65f6\u7684\u544a\u8b66\u7b56\u7565\u662f\u600e\u4e48\u8bbe\u8ba1\u7684\uff1f",
+  "ai_error": "",
+  "ai_chars": 39,
+  "http": 200,
+  "time_sec": 8,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

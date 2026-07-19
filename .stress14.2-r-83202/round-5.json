@@ -1,0 +1,12 @@
+{
+  "round": 5,
+  "user_say": "Flink \u7684 watermark \u673a\u5236\u80fd\u89e3\u51b3\u4e71\u5e8f\u95ee\u9898",
+  "ai_say": "",
+  "ai_error": "{\"code\": \"STREAM_ERROR\", \"message\": \"[interviewer] AI \u8f93\u51fa\u975e JSON: {\\n  \\\"question\\\": \\\"\u4f60\u521a\u624d\u63d0\u5230\u7528 Flink \u5b9e\u65f6\u8ba1\u7b97\u7528\u6237\u5174\u8da3\u5411\u91cf\uff0c\u8fd9\u542c\u8d77\u6765\u5bf9\u5e94\u7b80\u5386\u91cc\u7684\u6296\u97f3\u63a8\u8350\u540e\u7aef\u3002\u6696\u573a\u9636\u6bb5\u6211\u5148\u542c\u5b8c\u6574\u8109\u7edc\u3001\u4e0d\u62a0\u7ec6\u8282\uff1a\u8bf7\u4f60\u4ee5\u8fd9\u4e2a\"}",
+  "ai_chars": 0,
+  "http": 200,
+  "time_sec": 24,
+  "is_finish": false,
+  "is_biz_ok": 0,
+  "is_ai_error": 1
+}

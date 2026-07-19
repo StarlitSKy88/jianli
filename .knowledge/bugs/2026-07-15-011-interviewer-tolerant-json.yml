@@ -1,0 +1,75 @@
+id: bug-2026-07-15-011
+title: 真实 AI 输出 JSON 容错（Hy3/gemma/llama 经常夹杂解释文本）
+category: bug
+severity: medium
+tags: [ai, json-parse, hy3, gemma, llama, small-models, tolerant-parser]
+created_at: 2026-07-15
+project: interview-buddy
+
+problem: |
+  真实小模型（Hy3/gemma-2 26b/llama-3.1/聚ai/gpt-oss）会输出：
+
+  ```
+  好的，以下是符合要求的输出：
+  {"question":"请你介绍一下最近的项目？","dimension":"tech","phase":"deep"}
+  如果需要调整请告诉我。
+  ```
+
+  `interviewer.parseOutput` 只尝试：
+  1. 直接 JSON.parse (raw)
+  2. 匹配 ```json ... ``` 块
+
+  上面这种格式两个都失败 → 抛 STREAM_ERROR → 用户看到对话崩。
+
+solution: |
+  在 `lib/agents/interviewer/index.ts::parseOutput` 增加 尝试 3：
+  提取首段 `{...}` 平衡匹配块（处理字符串字面量内的 `{}` 转义）。
+
+  ```ts
+  const firstBrace = raw.indexOf('{');
+  if (firstBrace !== -1) {
+    let depth = 0, inStr = false, escape = false;
+    for (let i = firstBrace; i < raw.length; i++) {
+      const ch = raw[i];
+      if (inStr) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === '{') { depth++; continue; }
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          const candidate = raw.slice(firstBrace, i + 1);
+          try { return InterviewerOutputSchema.parse(JSON.parse(candidate)); }
+          catch { break; }
+        }
+      }
+    }
+  }
+  ```
+
+  ⚠️ 注意平衡匹配器里要处理字符串内的转义 `\\"`，否则嵌套 `"foo": "bar\"{"` 会算错。
+
+verification:
+  vitest: |
+    新增 2 个测试：
+    - "parses JSON embedded in text (Phase 13.6 tolerant parser)"
+      input: `好的，让我把它整理成 JSON：\n{...}\n希望对你有帮助。`
+    - "parses JSON with leading explanation prefix"
+      input: `以下是符合要求的输出：{...}`
+    - 共 2 passed，115 total pass
+
+learned_from:
+  - date: Phase 13.6 (2026-07-15)
+  - file: lib/agents/interviewer/index.ts
+
+anti_pattern: |
+  ❌ 只用 JSON.parse(raw) 一种解析方式
+  ❌ 大模型实验室测试用 Claude/GPT-4 不会暴露这问题 → 真实小模型才暴露
+
+  ✅ 多种容错：raw → fenced → 平衡括号提取
+  ✅ 对每个失败模式都加单元测试（不只是 happy path）
+  ✅ 平衡匹配必须处理字符串内转义

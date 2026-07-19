@@ -1,0 +1,272 @@
+[
+  {
+    "round": 1,
+    "user_say": "你好，我叫李明，今年38岁，有10年后端开发经验",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 31,
+    "is_finish": false
+  },
+  {
+    "round": 2,
+    "user_say": "我之前在字节跳动做过 3 年推荐系统后端",
+    "ai_say": "{\n  \"question\": \"你之前在字节做推荐系统后端有3年经验，能挑一个你最熟悉或近来做的推荐系统项目，整体介绍一下它的业务目标、你担任的角色以及核心技术栈吗？我们先听整体，细节后面再聊。\",\n  \"dimension\": \"project\",\n  \"nextFocus\": \"暖场听完整项目介绍，暂不追问技术细节，考察表达与全局视角\",\n  \"phase\": \"warm\"\n}",
+    "ai_chars": 193,
+    "http": 200,
+    "time_sec": 37,
+    "is_finish": false
+  },
+  {
+    "round": 3,
+    "user_say": "推荐系统后端的核心挑战是低延迟和高吞吐",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 39,
+    "is_finish": false
+  },
+  {
+    "round": 4,
+    "user_say": "我们用 Flink 实时计算用户兴趣向量",
+    "ai_say": "请继续介绍您的项目。",
+    "ai_chars": 10,
+    "http": 200,
+    "time_sec": 49,
+    "is_finish": false
+  },
+  {
+    "round": 5,
+    "user_say": "Flink 的 watermark 机制能解决乱序问题",
+    "ai_say": "请继续介绍您的项目。",
+    "ai_chars": 10,
+    "http": 200,
+    "time_sec": 37,
+    "is_finish": false
+  },
+  {
+    "round": 6,
+    "user_say": "乱序问题在大流量下很常见，比如百万 QPS",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 18,
+    "is_finish": false
+  },
+  {
+    "round": 7,
+    "user_say": "我当时做的一个优化是把 Redis pipeline 化",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 18,
+    "is_finish": false
+  },
+  {
+    "round": 8,
+    "user_say": "Redis pipeline 减少了 70% 的网络往返时间",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 49,
+    "is_finish": false
+  },
+  {
+    "round": 9,
+    "user_say": "另一个优化是引入本地缓存 LRU + 分布式缓存",
+    "ai_say": "请继续介绍您的项目。",
+    "ai_chars": 10,
+    "http": 200,
+    "time_sec": 61,
+    "is_finish": false
+  },
+  {
+    "round": 10,
+    "user_say": "这样能扛住热点 key 的访问压力",
+    "ai_say": "请继续介绍您的项目。",
+    "ai_chars": 10,
+    "http": 200,
+    "time_sec": 40,
+    "is_finish": false
+  },
+  {
+    "round": 11,
+    "user_say": "热点 key 的本质是流量倾斜",
+    "ai_say": "请继续介绍您的项目。",
+    "ai_chars": 10,
+    "http": 200,
+    "time_sec": 33,
+    "is_finish": false
+  },
+  {
+    "round": 12,
+    "user_say": "流量倾斜在直播间和电商秒杀很常见",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 35,
+    "is_finish": false
+  },
+  {
+    "round": 13,
+    "user_say": "秒杀系统的设计核心是库存扣减的原子性",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 22,
+    "is_finish": false
+  },
+  {
+    "round": 14,
+    "user_say": "我们用 Redis Lua 脚本保证原子扣减",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 35,
+    "is_finish": false
+  },
+  {
+    "round": 15,
+    "user_say": "Lua 脚本比分布式锁性能高 10 倍",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 48,
+    "is_finish": false
+  },
+  {
+    "round": 16,
+    "user_say": "分布式锁在 Redis 主从切换时可能失效",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 31,
+    "is_finish": false
+  },
+  {
+    "round": 17,
+    "user_say": "所以用 Redlock 或者 etcd 更可靠",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 17,
+    "is_finish": false
+  },
+  {
+    "round": 18,
+    "user_say": "但 Redlock 实现复杂，运维成本高",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 43,
+    "is_finish": false
+  },
+  {
+    "round": 19,
+    "user_say": "实际项目我们用 Redis 集群 + 异步补偿",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 17,
+    "is_finish": false
+  },
+  {
+    "round": 20,
+    "user_say": "异步补偿基于消息队列，最终一致性",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 38,
+    "is_finish": false
+  },
+  {
+    "round": 21,
+    "user_say": "Kafka 在我们项目里扛日均千亿级消息",
+    "ai_say": "请继续介绍您的项目。",
+    "ai_chars": 10,
+    "http": 200,
+    "time_sec": 33,
+    "is_finish": false
+  },
+  {
+    "round": 22,
+    "user_say": "Kafka 的 ISR 机制保证数据不丢",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 18,
+    "is_finish": false
+  },
+  {
+    "round": 23,
+    "user_say": "ISR 收缩和扩张是 Kafka 运维的关键",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 17,
+    "is_finish": false
+  },
+  {
+    "round": 24,
+    "user_say": "遇到过 ISR 频繁收缩的问题吗",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 17,
+    "is_finish": false
+  },
+  {
+    "round": 25,
+    "user_say": "遇到过，后来调小了 replica.lag.time.max.ms",
+    "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"全部 AI provider 失败：402 Insufficient Balance\"}",
+    "ai_chars": 81,
+    "http": 200,
+    "time_sec": 37,
+    "is_finish": false
+  },
+  {
+    "round": 26,
+    "user_say": "另外 producer 用 acks=all + idempotent 保证不丢",
+    "ai_say": "",
+    "ai_chars": 0,
+    "http": 400,
+    "time_sec": 0,
+    "is_finish": false
+  },
+  {
+    "round": 27,
+    "user_say": "幂等性是用 PID + sequence number 实现的",
+    "ai_say": "",
+    "ai_chars": 0,
+    "http": 400,
+    "time_sec": 0,
+    "is_finish": false
+  },
+  {
+    "round": 28,
+    "user_say": "是的，broker 端会缓存最近 5 个 sequence",
+    "ai_say": "",
+    "ai_chars": 0,
+    "http": 400,
+    "time_sec": 0,
+    "is_finish": false
+  },
+  {
+    "round": 29,
+    "user_say": "聊一下你的职业规划，35+ 之后怎么走",
+    "ai_say": "",
+    "ai_chars": 0,
+    "http": 400,
+    "time_sec": 0,
+    "is_finish": false
+  },
+  {
+    "round": 30,
+    "user_say": "我面试结束了，谢谢",
+    "ai_say": "",
+    "ai_chars": 0,
+    "http": 400,
+    "time_sec": 0,
+    "is_finish": true
+  }
+]

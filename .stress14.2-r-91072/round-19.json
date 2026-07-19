@@ -1,0 +1,12 @@
+{
+  "round": 19,
+  "user_say": "\u5b9e\u9645\u9879\u76ee\u6211\u4eec\u7528 Redis \u96c6\u7fa4 + \u5f02\u6b65\u8865\u507f",
+  "ai_say": "\u8fdb\u7a0b\u3001\u7ebf\u7a0b\u3001\u534f\u7a0b\u7684\u533a\u522b\u662f\u4ec0\u4e48\uff1fGo \u7684 GMP \u6a21\u578b\u4f60\u4e86\u89e3\u5417\uff1f",
+  "ai_error": "",
+  "ai_chars": 31,
+  "http": 200,
+  "time_sec": 8,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}

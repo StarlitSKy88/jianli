@@ -1,0 +1,12 @@
+{
+  "round": 27,
+  "user_say": "\u5e42\u7b49\u6027\u662f\u7528 PID + sequence number \u5b9e\u73b0\u7684",
+  "ai_say": "\u6700\u8fd1\u534a\u5e74\u4f60\u8bfb\u8fc7\u54ea\u4e9b\u6280\u672f\u4e66\uff1f\u5bf9\u81ea\u5df1\u7684\u6210\u957f\u6709\u4ec0\u4e48\u89c4\u5212\uff1f",
+  "ai_error": "",
+  "ai_chars": 25,
+  "http": 200,
+  "time_sec": 8,
+  "is_finish": false,
+  "is_biz_ok": 1,
+  "is_ai_error": 0
+}
