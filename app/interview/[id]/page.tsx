@@ -119,7 +119,22 @@ export default function InterviewChatPage({ params }: { params: { id: string } }
     }
   }
 
-  function finish() {
+  async function finish() {
+    setFinished(true);
+    try {
+      // Bug-028 (2026-07-20 E2E)：调 /complete 端点触发 status=COMPLETED + 评分持久化
+      const r = await fetch(`/api/interview/${params.id}/complete`, { method: 'POST' });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setError(d?.error?.message || '完成面试失败');
+        setFinished(false);
+        return;
+      }
+    } catch (e) {
+      setError((e as Error).message || '网络错误');
+      setFinished(false);
+      return;
+    }
     router.push(`/interview/${params.id}/report` as never);
   }
 

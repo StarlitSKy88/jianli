@@ -19,7 +19,7 @@ import { consumeVerifyCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
 import {
   isHoneypotTriggered,
-  checkRateLimit,
+  checkRateLimitAsync,
   getClientIp,
   verifyTurnstile,
   RATE_LIMITS,
@@ -47,7 +47,11 @@ export async function POST(req: NextRequest) {
   }
   // IP 限流：5 分钟内最多 3 次注册
   if (
-    !checkRateLimit(`register:${ip}`, RATE_LIMITS.register.maxHits, RATE_LIMITS.register.windowMs)
+    !(await checkRateLimitAsync(
+      `register:${ip}`,
+      RATE_LIMITS.register.maxHits,
+      RATE_LIMITS.register.windowMs
+    ))
   ) {
     return errorResponse('TOO_FREQUENT', '注册请求过于频繁，请稍后再试', 429, req);
   }

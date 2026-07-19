@@ -36,11 +36,27 @@ export default function NewInterviewPage() {
         const r = await fetch('/api/resume');
         if (r.ok) {
           const d = await r.json();
-          setResumes(d.resumes || []);
-          if (d.resumes?.[0]) setResumeId(d.resumes[0].id);
+          // B12 修复：normalize 每条简历的 parsed + techStack，避免 undefined 渗入渲染
+          const list = (d.resumes || []).map((row: Resume & { techStack?: string[] }) => ({
+            ...row,
+            parsed:
+              row.parsed && typeof row.parsed === 'object' && !Array.isArray(row.parsed)
+                ? row.parsed
+                : {},
+            techStack: Array.isArray(row.techStack) ? row.techStack : [],
+          }));
+          setResumes(list);
+          if (list[0]) setResumeId(list[0].id);
+        } else if (r.status === 401) {
+          // Bug-023 (2026-07-20 E2E #7)：未登录访问 /interview/new 跳 /login
+          // 与首页策略一致，避免页面被潜入但提交时被拦（用户体验差）
+          router.replace('/login');
+        } else {
+          // B12 修复：500 等其他错误不静默吞
+          console.warn(`[interview/new] /api/resume returned ${r.status}`);
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('[interview/new] /api/resume fetch failed:', (e as Error).message);
       }
     })();
   }, []);

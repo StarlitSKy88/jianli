@@ -17,7 +17,7 @@ import { sendVerifyCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
 import {
   isHoneypotTriggered,
-  checkRateLimit,
+  checkRateLimitAsync,
   getClientIp,
   verifyTurnstile,
   RATE_LIMITS,
@@ -43,11 +43,11 @@ export async function POST(req: NextRequest) {
 
   // 2) IP 限流：同 IP 60 秒内只发 1 次
   if (
-    !checkRateLimit(
+    !(await checkRateLimitAsync(
       `send-verify-code:${ip}`,
       RATE_LIMITS.sendVerifyCode.maxHits,
       RATE_LIMITS.sendVerifyCode.windowMs
-    )
+    ))
   ) {
     return errorResponse('TOO_FREQUENT', '请求过于频繁，请稍后再试', 429, req);
   }

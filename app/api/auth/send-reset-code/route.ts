@@ -17,7 +17,7 @@ import { sendPasswordResetCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
 import {
   isHoneypotTriggered,
-  checkRateLimit,
+  checkRateLimitAsync,
   getClientIp,
   verifyTurnstile,
   RATE_LIMITS,
@@ -43,11 +43,11 @@ export async function POST(req: NextRequest) {
 
   // 2) IP 限流
   if (
-    !checkRateLimit(
+    !(await checkRateLimitAsync(
       `send-reset-code:${ip}`,
       RATE_LIMITS.sendVerifyCode.maxHits,
       RATE_LIMITS.sendVerifyCode.windowMs
-    )
+    ))
   ) {
     return errorResponse('TOO_FREQUENT', '请求过于频繁，请稍后再试', 429, req);
   }

@@ -20,7 +20,7 @@ import { consumeResetCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
 import {
   isHoneypotTriggered,
-  checkRateLimit,
+  checkRateLimitAsync,
   getClientIp,
   verifyTurnstile,
   RATE_LIMITS,
@@ -48,11 +48,11 @@ export async function POST(req: NextRequest) {
 
   // 2) IP 限流（与 register 共用，防止暴力枚举验证码）
   if (
-    !checkRateLimit(
+    !(await checkRateLimitAsync(
       `reset-password:${ip}`,
       RATE_LIMITS.register.maxHits,
       RATE_LIMITS.register.windowMs
-    )
+    ))
   ) {
     return errorResponse('TOO_FREQUENT', '请求过于频繁，请稍后再试', 429, req);
   }

@@ -109,7 +109,18 @@ export default function ReportPage({ params }: { params: { id: string } }) {
       try {
         const r = await fetch(`/api/interview/${params.id}/report`);
         if (!r.ok) {
-          setError('加载失败');
+          // Bug-028 (2026-07-20 E2E)：根据 status code 给不同文案
+          // 404 → 面试未完成 / report 未生成（用户提前跳过来或评分失败）
+          // 403 → 无权查看（userId 不匹配）
+          // 其他 → 通用错误
+          if (r.status === 404) {
+            setError('面试尚未完成，请先回到对话页点击"完成"按钮生成报告');
+          } else if (r.status === 403) {
+            setError('无权查看该报告');
+          } else {
+            const d = await r.json().catch(() => ({}));
+            setError(d?.error?.message || '加载失败，请稍后重试');
+          }
           return;
         }
         const d = await r.json();

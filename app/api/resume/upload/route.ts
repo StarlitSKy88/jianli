@@ -11,7 +11,56 @@ import { parseResume, ResumeParseError } from '@/lib/resume/parser';
 import { extractStructured } from '@/lib/resume/ai-extract';
 import { track } from '@/lib/analytics/track';
 
+// EdgeOne Pages cloud-functions 单次内存 128MiB 硬上限。AI 提取 + 解析同时驻留，
+// 单文件硬上限 5MB + 预留 8MB 给 AI/解析栈 ≈ 13MB，远低于 128MiB 阈值。
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+/**
+ * Bug-025 (2026-07-20 E2E)：客户端用 chunked transfer encoding 不带 Content-Length，
+ * 绕过早判 → formData() 一路缓冲到 128MiB → EdgeOne 500 "package size exceeds 128MiB"。
+ *
+ * 修复策略：双保险
+ * (a) Content-Length > 5MB → 立即 413
+ * (b) Content-Length 缺失 → 用 reader 累加，超过阈值 cancel + 413；不消耗原 body（Next.js
+ *     NextRequest.body 是 tee 副本，getReader() 不会独占）
+ */
+async function assertBodyWithinLimit(req: NextRequest, maxBytes: number): Promise<void> {
+  const declared = Number(req.headers.get('content-length') ?? '0');
+  if (declared > maxBytes) {
+    throw new HttpError(413, 'FILE_TOO_LARGE', '文件超过 5MB 限制');
+  }
+  if (declared > 0) return; // 有声明长度且合规，跳过 streaming 校验
+
+  // 没有 Content-Length（chunked / 客户端漏传），流式累加 + 提前抛错
+  if (!req.body) return;
+  const reader = req.body.getReader();
+  let received = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {
+        /* ignore */
+      }
+      throw new HttpError(413, 'FILE_TOO_LARGE', '文件超过 5MB 限制');
+    }
+  }
+  // Next.js NextRequest.body 是底层 stream 的 tee 副本，getReader() 不消耗原 stream，
+  // 后续仍可 await req.formData() 解析。
+}
+
+class HttpError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    public override message: string
+  ) {
+    super(message);
+  }
+}
 const ALLOWED_MIMES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -27,11 +76,16 @@ export async function POST(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return errorResponse('UNAUTHENTICATED', '未登录', 401);
 
-  // 早期拒大文件 + 空 body（防内存占用）
+  // Bug-025 (2026-07-20)：早期拒大文件 + 空 body + chunked 防御
   const contentLength = Number(req.headers.get('content-length') ?? '0');
   if (contentLength === 0) return errorResponse('EMPTY_BODY', '请求体为空', 400);
-  if (contentLength > MAX_FILE_SIZE) {
-    return errorResponse('FILE_TOO_LARGE', '文件超过 5MB 限制', 413);
+  try {
+    await assertBodyWithinLimit(req, MAX_FILE_SIZE);
+  } catch (e) {
+    if (e instanceof HttpError) {
+      return errorResponse(e.code, e.message, e.status);
+    }
+    throw e;
   }
 
   let form: FormData;

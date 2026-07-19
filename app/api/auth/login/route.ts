@@ -12,7 +12,12 @@ import { verifyPassword } from '@/lib/auth/password';
 import { signSession } from '@/lib/auth/session';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/auth/middleware';
 import { setAuthCookie } from '@/lib/auth/cookie';
-import { checkRateLimit, getClientIp, verifyTurnstile, RATE_LIMITS } from '@/lib/auth/anti-abuse';
+import {
+  checkRateLimitAsync,
+  getClientIp,
+  verifyTurnstile,
+  RATE_LIMITS,
+} from '@/lib/auth/anti-abuse';
 
 const Body = z.object({
   email: z.string().email(),
@@ -28,7 +33,13 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return validationErrorResponse(parsed.error, req);
 
   // 1) IP 限流：5 分钟内最多 10 次登录（防撞库）
-  if (!checkRateLimit(`login:${ip}`, RATE_LIMITS.login.maxHits, RATE_LIMITS.login.windowMs)) {
+  if (
+    !(await checkRateLimitAsync(
+      `login:${ip}`,
+      RATE_LIMITS.login.maxHits,
+      RATE_LIMITS.login.windowMs
+    ))
+  ) {
     return errorResponse('TOO_FREQUENT', '登录尝试过于频繁，请稍后再试', 429, req);
   }
 

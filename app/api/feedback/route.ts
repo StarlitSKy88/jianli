@@ -31,7 +31,7 @@ import {
 import { track } from '@/lib/analytics/track';
 import {
   isHoneypotTriggered,
-  checkRateLimit,
+  checkRateLimitAsync,
   getClientIp,
   verifyTurnstile,
   RATE_LIMITS,
@@ -71,7 +71,11 @@ export async function POST(req: NextRequest) {
 
   // 2) IP 限流：1 小时 5 次
   if (
-    !checkRateLimit(`feedback:${ip}`, RATE_LIMITS.feedback.maxHits, RATE_LIMITS.feedback.windowMs)
+    !(await checkRateLimitAsync(
+      `feedback:${ip}`,
+      RATE_LIMITS.feedback.maxHits,
+      RATE_LIMITS.feedback.windowMs
+    ))
   ) {
     return errorResponse('TOO_FREQUENT', '反馈提交过于频繁，请稍后再试', 429);
   }

@@ -143,7 +143,7 @@ describe('PII guard', () => {
     ['你结婚了吗', 'byte'],
     ['你有几个孩子', 'ali'],
     ['你买房了吗', 'tencent'],
-    ['你35岁了吧', 'bili'],
+    ['你35岁了吗', 'bili'],
   ])('blocks PII question: %s (%s)', async (badQ, company) => {
     mockAiChat.mockResolvedValueOnce({
       content: JSON.stringify({ question: badQ, dimension: 'culture', phase: 'deep' }),

@@ -30,6 +30,7 @@ vi.mock('@/lib/db/client', () => ({
 vi.mock('@/lib/auth/anti-abuse', () => ({
   isHoneypotTriggered: vi.fn(() => false),
   checkRateLimit: vi.fn(() => true),
+  checkRateLimitAsync: vi.fn(async () => true),
   getClientIp: vi.fn(() => '203.0.113.7'),
   verifyTurnstile: vi.fn(async () => ({ ok: true })),
   RATE_LIMITS: { feedback: { maxHits: 5, windowMs: 3600_000 } },

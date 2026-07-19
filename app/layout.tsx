@@ -54,7 +54,35 @@ export const metadata: Metadata = {
     title: 'Interview Buddy - AI 面试陪练',
     description: '35+ 群体的 AI 面试陪练 — 16 关真实模拟 + 8 维度评分报告',
     siteName: 'Interview Buddy',
+    // Bug-027 (2026-07-20 E2E)：补 og:image，让微信/微博/Twitter 分享时显示预览图
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Interview Buddy — 35+ AI 面试陪练',
+      },
+    ],
   },
+  // Bug-027：补 Twitter Card（X 平台分享必备）
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Interview Buddy - AI 面试陪练',
+    description: '35+ 群体的 AI 面试陪练 — 16 关真实模拟 + 8 维度评分报告',
+    images: ['/og-image.png'],
+  },
+  // Bug-027：iOS Safari 5-set（添加到主屏 + 启动画面 + 状态栏样式）
+  appleWebApp: {
+    capable: true,
+    title: 'Interview Buddy',
+    statusBarStyle: 'black-translucent',
+    // startupImage: iOS 启动画面（如需可后续追加 1242×2688 / 750×1620 等多套）
+  },
+  applicationName: 'Interview Buddy',
+  // Bug-027：PWA / Chrome 地址栏配色
+  themeColor: '#0a0a0a',
+  // Bug-027：format-detection 关闭 iOS 自动识别电话/邮箱（避免误触发 tel:/mailto:）
+  formatDetection: { telephone: false, email: false, address: false },
   alternates: {
     canonical: BASE_URL,
   },
