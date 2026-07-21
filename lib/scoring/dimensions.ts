@@ -50,11 +50,24 @@ export const DIMENSION_WEIGHTS: Record<InterviewerType, Record<Dimension, number
   },
 };
 
-/** 0-100 分制 */
+/**
+ * 0-100 分制
+ *
+ * Phase 14.25 新增置信度字段 + 追问引用机制：
+ * - confidence (0-1): AI 自评对这次评分的把握度
+ *   - 高 (≥0.8): AI 有明确证据支撑
+ *   - 中 (0.5-0.8): 有依据但存在歧义
+ *   - 低 (<0.5): 对话信息不足 / 边界情况
+ * - citationQuotes: 引用的候选人原话片段（用于反幻觉校验）
+ *   - 必须来自 transcript.user 的 content
+ *   - 缺失 → 反幻觉门禁拒绝（fallback 60 分）
+ */
 export const ScoreOutputSchema = z.object({
   score: z.number().min(0).max(100),
-  evidence: z.string().max(500), // 引用的具体候选人原话
+  evidence: z.string().max(500), // 引用的具体候选人原话（向后兼容字段）
   suggestions: z.array(z.string().max(200)).max(5), // 最多 5 条改进建议
+  confidence: z.number().min(0).max(1).optional(), // 置信度（Phase 14.25）
+  citationQuotes: z.array(z.string().max(100)).max(3).optional(), // 引用片段（Phase 14.25）
 });
 export type ScoreOutput = z.infer<typeof ScoreOutputSchema>;
 
