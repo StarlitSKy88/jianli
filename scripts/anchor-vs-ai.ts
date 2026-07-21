@@ -171,12 +171,27 @@ async function main() {
 
     try {
       // 直接调 aiChat（不走 scoreOne）— 跳过 PII 检查 / fallback 干扰
+      // --agent=mock 时真的传 provider=mock 给 router，强制走 mock 不触发真实 quota
+      const chatOpts: {
+        temperature: number;
+        maxTokens: number;
+        provider?: 'minimax' | 'claude' | 'deepseek' | 'openrouter' | 'mock';
+      } = {
+        temperature: 0.3,
+        maxTokens: 600,
+      };
+      if (
+        args.agent &&
+        ['minimax', 'claude', 'deepseek', 'openrouter', 'mock'].includes(args.agent)
+      ) {
+        chatOpts.provider = args.agent as 'minimax' | 'claude' | 'deepseek' | 'openrouter' | 'mock';
+      }
       const r = await aiChat(
         [
           { role: 'system', content: prompt.system },
           { role: 'user', content: prompt.user },
         ],
-        { temperature: 0.3, maxTokens: 600 }
+        chatOpts
       );
       // 用 regex 抓第一个整数作为分数（scorer prompt 输出是 JSON）
       const match = r.content.match(/"score"\s*:\s*(\d+)/);

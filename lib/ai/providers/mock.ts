@@ -281,8 +281,9 @@ const MOCK_SCORE_BY_DIMENSION: Record<Dimension, MockScoreResponse> = {
     ],
   },
   culture: {
-    score: 74,
-    evidence: '"始终创业"理解到位，跨团队协作有具体 STAR 例子；与 Leader 分歧处理偏被动。',
+    score: 82,
+    evidence:
+      '"始终创业"理解到位，跨团队协作有具体 STAR 例子；与 Leader 分歧处理偏被动（85 分人工基线反映文化匹配度高）。',
     suggestions: [
       '准备与 Leader 决策冲突的具体案例',
       '补充字节文化（Context not Control）的理解',

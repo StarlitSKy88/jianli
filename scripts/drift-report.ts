@@ -65,11 +65,13 @@ async function main() {
 
   let evaluations: Array<{
     id: string;
+    anchorId: string;
     agentName: string;
+    agentVersion: string;
     aiScore: number;
-    humanScore: number;
     driftDelta: number;
     isDrift: boolean;
+    aiReasoning: string | null;
     durationMs: number;
     evaluatedAt: Date;
     anchor: { company: string; dimension: string };

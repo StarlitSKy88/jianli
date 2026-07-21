@@ -51,6 +51,18 @@ const PROVIDERS: RouteEntry[] = [
 
 export interface RouterOptions extends ChatOptions {
   signal?: AbortSignal;
+  /**
+   * 强制指定 provider 名称（跳过 priority 排序）
+   *
+   * 用例：
+   *   - 漂移检测脚本 `anchor-vs-ai.ts --agent=mock` 想隔离真实 AI quota
+   *   - 调试时强制走某个 provider
+   *
+   * 注意：仍会走 fallback 链（如果指定 provider 失败）— 这是有意的，
+   *       否则一个 quota 错误就完全阻断脚本。
+   *       想"硬切"请配合 cooldown 一起用：`resetCooldown('minimax')` 后再指定
+   */
+  provider?: ProviderName;
 }
 
 /**
@@ -182,9 +194,24 @@ export async function aiChat(messages: ChatMessage[], opts?: RouterOptions): Pro
     }
 
     const now = Date.now();
-    const available = filterAvailable(allProviders, now);
+    let available = filterAvailable(allProviders, now);
     if (available.length === 0) {
       throw new Error('所有 AI provider 都在 cooldown 中 — 请稍后重试或检查 quota');
+    }
+
+    // 强制指定 provider：把它移到可用列表最前面
+    // 用例：anchor-vs-ai.ts --agent=mock 想隔离真实 quota
+    // 仍走 fallback 链（如果指定 provider 抛错），保证不阻断
+    if (opts?.provider) {
+      const forced = available.find((p) => p.name === opts.provider);
+      if (forced) {
+        available = [forced, ...available.filter((p) => p.name !== opts.provider)];
+        console.info(`[ai-router] forced provider=${opts.provider}（移到可用列表最前）`);
+      } else {
+        console.warn(
+          `[ai-router] opts.provider=${opts.provider} 但未在 enabledProviders 中找到（可能 USE_MOCK_AI=1 未开）— 忽略`
+        );
+      }
     }
 
     let lastErr: Error | null = null;
@@ -237,10 +264,19 @@ export async function aiStreamChat(
     }
 
     const now = Date.now();
-    const available = filterAvailable(allProviders, now);
+    let available = filterAvailable(allProviders, now);
     if (available.length === 0) {
       onChunk?.({ type: 'error', error: '所有 AI provider 都在 cooldown 中' });
       throw new Error('All AI providers in cooldown');
+    }
+
+    // 强制指定 provider（与 aiChat 保持一致）
+    if (opts?.provider) {
+      const forced = available.find((p) => p.name === opts.provider);
+      if (forced) {
+        available = [forced, ...available.filter((p) => p.name !== opts.provider)];
+        console.info(`[ai-router] forced provider=${opts.provider}（stream 模式）`);
+      }
     }
 
     let lastErr: Error | null = null;
