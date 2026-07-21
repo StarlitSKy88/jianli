@@ -67,3 +67,7 @@ blob-report/
 .dbg*/
 .env.local.backup
 .env.local.bak
+
+# Ad-hoc E2E 临时脚本与报告（产物已固化到 .knowledge/bugs/）
+.zhangwei-*.js
+.zhangwei-*.md
