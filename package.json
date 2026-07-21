@@ -78,6 +78,7 @@
     "postcss": "^8.4.31",
     "prettier": "~3.3.3",
     "tailwindcss": "~3.4.19",
+    "tsx": "^4.23.1",
     "typescript": "5.5.4",
     "vitest": "^2.1.9"
   }

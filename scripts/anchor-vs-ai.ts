@@ -115,9 +115,29 @@ async function main() {
   if (args.dimension) where.dimension = args.dimension;
 
   // 抽样（MySQL 不支持 ORDER BY RAND() 性能友好版 → 先 count 再 offset）
-  const total = await prisma.scoreAnchor.count({ where });
+  let total: number;
+  try {
+    total = await prisma.scoreAnchor.count({ where });
+  } catch (e) {
+    const msg = (e as Error).message.split('\n')[0];
+    console.error(`[anchor-vs-ai] ❌ DB 不可达: ${msg}`);
+    console.error(
+      '[anchor-vs-ai] 修复路径:\n' +
+        '  1. 检查 .env.local 里 DATABASE_URL 是否正确\n' +
+        '  2. 确认 DB 服务可达 (mysql ping 或 telnet)\n' +
+        '  3. 应用 anchor migration: pnpm prisma migrate deploy\n' +
+        '  4. 创建 anchor 数据: POST /api/admin/anchors'
+    );
+    process.exit(2); // exit code 2 = DB 不可达，区别于 "no anchor" 的 exit code 1
+  }
   if (total === 0) {
     console.error('[anchor-vs-ai] ❌ 没有 anchor 可测 — 请先用 admin API 创建');
+    console.error(
+      '[anchor-vs-ai] 示例: curl -X POST http://localhost:3000/api/admin/anchors \\\n' +
+        '  -H "Authorization: Bearer $ADMIN_JWT" \\\n' +
+        '  -H "Content-Type: application/json" \\\n' +
+        '  -d \'{"company":"byte","role":"后端","level":"P6","dimension":"tech","questionText":"...","referenceAnswer":"...","humanScore":82,"expectedScoreMin":75,"expectedScoreMax":90,"driftThreshold":5}\''
+    );
     process.exit(1);
   }
   const anchors = await prisma.scoreAnchor.findMany({

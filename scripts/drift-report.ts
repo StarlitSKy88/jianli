@@ -63,13 +63,37 @@ async function main() {
     where.anchor = { company: args.company };
   }
 
-  const evaluations = await prisma.anchorEvaluation.findMany({
-    where,
-    include: {
-      anchor: { select: { company: true, dimension: true } },
-    },
-    orderBy: { evaluatedAt: 'asc' },
-  });
+  let evaluations: Array<{
+    id: string;
+    agentName: string;
+    aiScore: number;
+    humanScore: number;
+    driftDelta: number;
+    isDrift: boolean;
+    durationMs: number;
+    evaluatedAt: Date;
+    anchor: { company: string; dimension: string };
+  }>;
+  try {
+    evaluations = await prisma.anchorEvaluation.findMany({
+      where,
+      include: {
+        anchor: { select: { company: true, dimension: true } },
+      },
+      orderBy: { evaluatedAt: 'asc' },
+    });
+  } catch (e) {
+    const msg = (e as Error).message.split('\n')[0];
+    console.error(`[drift-report] ❌ DB 不可达: ${msg}`);
+    console.error(
+      '[drift-report] 修复路径:\n' +
+        '  1. 检查 .env.local 里 DATABASE_URL 是否正确\n' +
+        '  2. 确认 DB 服务可达\n' +
+        '  3. 应用 anchor migration: pnpm prisma migrate deploy\n' +
+        '  4. 先跑一次: pnpm tsx scripts/anchor-vs-ai.ts --sample=5'
+    );
+    process.exit(2);
+  }
 
   console.info(`[drift-report] 窗口内 evaluation 数: ${evaluations.length}`);
 
