@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth/middleware';
 import { track } from '@/lib/analytics/track';
 import { DIMENSION_WEIGHTS } from '@/lib/scoring/dimensions';
+import { loadPrompt, PromptLoadError } from '@/lib/agents/interviewer/prompt-loader';
 
 const CreateSchema = z.object({
   company: z.enum(['byte', 'ali', 'tencent', 'bili']),
@@ -34,6 +35,26 @@ export async function POST(req: NextRequest) {
   if (resume.userId !== session.userId) return errorResponse('FORBIDDEN', '无权使用他人简历', 403);
 
   const weights = DIMENSION_WEIGHTS[parsed.data.company] as unknown as object;
+
+  // Bug-029-B 修复：实体化 interviewerPrompt — 从 .knowledge/agents/{company}/system-prompt.md 读取真实 prompt
+  // 之前是字面占位符 `system prompt for ${company} ${role} ${level}`，导致不同公司面试风格趋同
+  // 失败 fallback：依然写占位符（不阻塞创建），但通过 console.error 暴露真凶
+  let interviewerPrompt: string;
+  try {
+    const loaded = loadPrompt(parsed.data.company);
+    interviewerPrompt = `${loaded.body}\n\n---\n\n## 当前任务上下文\n- 候选人岗位：${parsed.data.role}\n- 职级：${parsed.data.level}\n- 面试公司：${parsed.data.company.toUpperCase()}`;
+  } catch (e) {
+    if (e instanceof PromptLoadError) {
+      console.error('[interview-create] interviewerPrompt 加载失败', {
+        company: parsed.data.company,
+        role: parsed.data.role,
+        level: parsed.data.level,
+        errorMessage: e.message,
+      });
+    }
+    interviewerPrompt = `system prompt for ${parsed.data.company} ${parsed.data.role} ${parsed.data.level}`;
+  }
+
   const scenario = await prisma.scenario.upsert({
     where: {
       company_role_level: {
@@ -46,11 +67,14 @@ export async function POST(req: NextRequest) {
       company: parsed.data.company,
       role: parsed.data.role,
       level: parsed.data.level,
-      interviewerPrompt: `system prompt for ${parsed.data.company} ${parsed.data.role} ${parsed.data.level}`,
+      interviewerPrompt,
       scoringWeights: weights,
       difficultyPrompt: '',
     },
-    update: {},
+    update: {
+      // 已存在的 scenario 也更新 interviewerPrompt（防止占位符旧数据滞留）
+      interviewerPrompt,
+    },
   });
 
   const interview = await prisma.interview.create({
