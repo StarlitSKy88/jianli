@@ -9,6 +9,8 @@ let _instance: ClaudeProvider | null = null;
 
 export class ClaudeProvider implements AiProvider {
   readonly name = 'claude';
+  /** 2 = 次 provider（minimax 失败时降级） */
+  readonly priority = 2;
   private client: Anthropic;
   private defaultModel = 'claude-sonnet-4-5';
 

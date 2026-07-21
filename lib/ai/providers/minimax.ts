@@ -14,6 +14,7 @@ export function getMinimaxProvider(): OpenAiCompatible | null {
       apiKey,
       baseURL: process.env.MINIMAX_BASE_URL || 'https://api.MiniMax.chat/v1',
       defaultModel: process.env.MINIMAX_MODEL || 'MiniMax-M3',
+      priority: 1, // 主 provider（成本最低/性能最好）
     });
   }
   return _instance;

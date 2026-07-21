@@ -69,6 +69,7 @@ blob-report/
 .stress13*/
 .stress14*/
 .stress-debug*/
+.stress-*.js
 .env.local.backup
 .env.local.bak
 

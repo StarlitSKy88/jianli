@@ -14,6 +14,7 @@ export function getDeepSeekProvider(): OpenAiCompatible | null {
       apiKey,
       baseURL: 'https://api.deepseek.com/v1',
       defaultModel: 'deepseek-chat',
+      priority: 2, // 次 provider（minimax 失败时降级）
     });
   }
   return _instance;

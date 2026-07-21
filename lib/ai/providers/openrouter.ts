@@ -37,6 +37,8 @@ interface OpenRouterResponse {
 
 class OpenRouterProvider implements AiProvider {
   readonly name = 'openrouter';
+  /** 3 = 兜底 provider（minimax + deepseek 都失败时） */
+  readonly priority = 3;
   private readonly apiKey: string;
   private readonly baseURL = 'https://openrouter.ai/api/v1';
   private readonly defaultModel: string;

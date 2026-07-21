@@ -11,10 +11,14 @@ export interface OpenAiCompatibleConfig {
   apiKey: string;
   baseURL: string;
   defaultModel: string;
+  /** 优先级（数字越小越优先）。Router 按 priority 升序遍历。默认 2 = 次级 provider。 */
+  priority?: number;
 }
 
 export class OpenAiCompatible implements AiProvider {
   readonly name: string;
+  /** 优先级：minimax=1(主), deepseek=2(次), openrouter=3(兜底)，可由 config 覆盖 */
+  readonly priority: number;
   private readonly client: OpenAI;
   private readonly defaultModel: string;
 
@@ -23,6 +27,7 @@ export class OpenAiCompatible implements AiProvider {
       throw new Error(`[${config.name}] API key 未配置`);
     }
     this.name = config.name;
+    this.priority = config.priority ?? 2;
     this.defaultModel = config.defaultModel;
     this.client = new OpenAI({
       apiKey: config.apiKey,

@@ -318,6 +318,8 @@ function extractDimensionFromSystem(systemPrompt: string): Dimension | null {
 
 class MockProvider implements AiProvider {
   readonly name = 'mock';
+  /** 99 = mock 终极兜底（USE_MOCK_AI=1 时启用，永远最后才轮到） */
+  readonly priority = 99;
   private callCount = 0;
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResult> {

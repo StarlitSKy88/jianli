@@ -1,10 +1,22 @@
 /**
- * AI Router — 三层兜底
+ * AI Router — 三层兜底 + 智能降级
  *
- * 优先级（按 enabled 排序）：
- *   minimax → Claude → DeepSeek
+ * 优先级（按 priority 升序）：
+ *   1. minimax   — 主 provider（成本最低/性能最好）
+ *   2. claude    — 次 provider（minimax 失败时降级）
+ *   3. openrouter — 兜底 provider（用 fetch，多 free 模型自动 failover）
+ *   4. deepseek  — 备用 provider
+ *   99. mock     — 测试终极兜底（USE_MOCK_AI=1 时启用）
  *
- * 任一失败 → 自动降级到下一个 → 全部失败抛错
+ * 智能降级（Phase 14.23 新增）：
+ *   - provider 失败计数累计，连续 N 次失败进入 cooldown（5 分钟）
+ *   - cooldown 期间跳过该 provider，下次直接试下一个
+ *   - cooldown 到期后自动"半开"重试：成功则恢复，失败则重新进入 cooldown
+ *   - 余额/配额错误（402/429/insufficient_quota）立即触发更长 cooldown（10 分钟）
+ *
+ * 可观测性（Phase 14.23 新增）：
+ *   - 每次调用记录 attempt 链路：[provider] → [fail reason] → [cooldown end time]
+ *   - console.info 暴露 "为什么这次走到了 provider X"
  */
 import type {
   AiProvider,
@@ -27,12 +39,14 @@ interface RouteEntry {
   factory: () => AiProvider | null;
 }
 
+// Phase 14.23：注册表保留（用于 enabledProviders 发现 + 排序）
+// 不再硬编码顺序 —— 由 priority 字段决定
 const PROVIDERS: RouteEntry[] = [
-  { name: 'mock', factory: getMockProvider }, // Phase 14.4: 测试用，USE_MOCK_AI=1 时启用
   { name: 'minimax', factory: getMinimaxProvider },
-  { name: 'openrouter', factory: getOpenRouterProvider },
   { name: 'claude', factory: getClaudeProvider },
   { name: 'deepseek', factory: getDeepSeekProvider },
+  { name: 'openrouter', factory: getOpenRouterProvider },
+  { name: 'mock', factory: getMockProvider },
 ];
 
 export interface RouterOptions extends ChatOptions {
@@ -40,7 +54,83 @@ export interface RouterOptions extends ChatOptions {
 }
 
 /**
- * 获取所有已启用的 providers
+ * Cooldown 配置
+ *
+ * - THRESHOLD: 连续失败 N 次后进入 cooldown
+ * - BASE_DURATION_MS: cooldown 默认时长
+ * - QUOTA_DURATION_MS: 余额/配额错误专属更长 cooldown
+ */
+const COOLDOWN_CONFIG = {
+  THRESHOLD: 3, // 连续失败 3 次 → 进 cooldown
+  BASE_DURATION_MS: 5 * 60 * 1000, // 5 分钟
+  QUOTA_DURATION_MS: 10 * 60 * 1000, // 10 分钟（quota/余额错误）
+};
+
+interface ProviderHealth {
+  consecutiveFailures: number;
+  cooldownUntil: number; // 0 = 不在 cooldown
+  totalSuccess: number;
+  totalFailures: number;
+}
+
+/**
+ * Provider 健康状态表（in-memory）
+ *
+ * 注意：单实例内存。EdgeOne Pages 多实例时各自独立，但 cooldown 是"自我保护"，
+ * 跨实例不需要严格一致 — 每个实例学到一次即可。
+ */
+const health: Map<string, ProviderHealth> = new Map();
+
+function getHealth(name: string): ProviderHealth {
+  let h = health.get(name);
+  if (!h) {
+    h = { consecutiveFailures: 0, cooldownUntil: 0, totalSuccess: 0, totalFailures: 0 };
+    health.set(name, h);
+  }
+  return h;
+}
+
+function isInCooldown(name: string, now: number): boolean {
+  const h = getHealth(name);
+  return h.cooldownUntil > now;
+}
+
+/**
+ * 判断错误是否属于"quota/余额"类（应触发更长 cooldown + 立即降级）
+ */
+function isQuotaError(msg: string): boolean {
+  return /402|429|insufficient_quota|quota|billing|balance/i.test(msg);
+}
+
+function recordFailure(name: string, err: Error): { cooldownUntil: number; isQuota: boolean } {
+  const h = getHealth(name);
+  h.consecutiveFailures += 1;
+  h.totalFailures += 1;
+  const isQuota = isQuotaError(err.message);
+  if (h.consecutiveFailures >= COOLDOWN_CONFIG.THRESHOLD || isQuota) {
+    const duration = isQuota ? COOLDOWN_CONFIG.QUOTA_DURATION_MS : COOLDOWN_CONFIG.BASE_DURATION_MS;
+    h.cooldownUntil = Date.now() + duration;
+    const reason = isQuota ? 'quota' : `${h.consecutiveFailures} consecutive failures`;
+    console.warn(
+      `[ai-router] ${name} 进入 cooldown ${duration / 1000}s（${reason}），until ${new Date(h.cooldownUntil).toISOString()}`
+    );
+    return { cooldownUntil: h.cooldownUntil, isQuota };
+  }
+  return { cooldownUntil: 0, isQuota: false };
+}
+
+function recordSuccess(name: string): void {
+  const h = getHealth(name);
+  h.consecutiveFailures = 0;
+  h.cooldownUntil = 0; // 成功后清除 cooldown（半开重置）
+  h.totalSuccess += 1;
+}
+
+/**
+ * 获取所有已启用的 providers，按 priority 升序排序
+ *
+ * 关键：mock 的 priority=99 会自动排到最末尾，
+ * 即使误开 USE_MOCK_AI 也不会抢占真实 provider
  */
 function enabledProviders(): AiProvider[] {
   const list: AiProvider[] = [];
@@ -48,36 +138,89 @@ function enabledProviders(): AiProvider[] {
     const p = entry.factory();
     if (p) list.push(p);
   }
+  list.sort((a, b) => a.priority - b.priority);
   return list;
+}
+
+/**
+ * 过滤掉当前在 cooldown 的 provider
+ *
+ * 注意：mock (priority=99) 即使在 cooldown 也不跳过 — 它就是兜底中的兜底
+ */
+function filterAvailable(providers: AiProvider[], now: number): AiProvider[] {
+  return providers.filter((p) => p.priority === 99 || !isInCooldown(p.name, now));
+}
+
+/**
+ * 导出健康状态（用于管理面板 / 调试端点）
+ */
+export function getRouterHealth(): Record<string, ProviderHealth & { available: boolean }> {
+  const now = Date.now();
+  const result: Record<string, ProviderHealth & { available: boolean }> = {};
+  for (const [name, h] of health.entries()) {
+    result[name] = { ...h, available: h.cooldownUntil <= now };
+  }
+  return result;
+}
+
+/**
+ * 手动重置 cooldown（admin 工具 / 测试 helper）
+ */
+export function resetCooldown(name?: string): void {
+  if (name) {
+    health.delete(name);
+  } else {
+    health.clear();
+  }
 }
 
 export async function aiChat(messages: ChatMessage[], opts?: RouterOptions): Promise<ChatResult> {
   return withLLMSlot(async () => {
-    const providers = enabledProviders();
-    if (providers.length === 0) {
+    const allProviders = enabledProviders();
+    if (allProviders.length === 0) {
       throw new Error('没有任何 AI provider 可用 — 请配置 API keys');
     }
 
+    const now = Date.now();
+    const available = filterAvailable(allProviders, now);
+    if (available.length === 0) {
+      throw new Error('所有 AI provider 都在 cooldown 中 — 请稍后重试或检查 quota');
+    }
+
     let lastErr: Error | null = null;
-    for (const p of providers) {
+    let lastCooldownProvider: { name: string; until: number; isQuota: boolean } | null = null;
+
+    for (const p of available) {
       try {
+        console.info(`[ai-router] attempt ${p.name} (priority=${p.priority})`);
         const result = await p.chat(messages, opts);
-        console.info(`[ai-router] ${p.name}.chat → ${result.content.length} chars`);
+        recordSuccess(p.name);
+        console.info(`[ai-router] ${p.name}.chat ✓ ${result.content.length} chars`);
         return result;
       } catch (e) {
-        lastErr = e as Error;
-        const msg = (e as Error).message;
-        console.warn(`[ai-router] ${p.name}.chat failed: ${msg}`);
-        // P0-5 修复：余额/配额错误（402/429/insufficient_quota）立即 fail-fast，
-        // 不浪费 30s 超时窗口。短路直接跳到下一个 provider。
-        if (/402|429|insufficient_quota|quota|billing|balance/i.test(msg)) {
-          console.warn(`[ai-router] ${p.name} 余额/配额耗尽，立即降级到下一层`);
+        const err = e as Error;
+        lastErr = err;
+        const { cooldownUntil, isQuota } = recordFailure(p.name, err);
+        console.warn(`[ai-router] ${p.name}.chat ✗ ${err.message.slice(0, 120)}`);
+
+        if (cooldownUntil > 0) {
+          lastCooldownProvider = { name: p.name, until: cooldownUntil, isQuota };
+        }
+
+        // Quota/余额错误：跳过 cooldown 直接降级到下一个（避免无意义等待）
+        // 但仍记录 cooldown —— 下次调用就不会再试这个 provider
+        if (isQuota) {
           continue;
         }
       }
     }
 
-    throw new Error(`全部 AI provider 失败：${lastErr?.message || 'unknown'}`);
+    // 全部失败 — 暴露详细诊断
+    const diagnosis = lastCooldownProvider
+      ? ` 最近 cooldown: ${lastCooldownProvider.name} until ${new Date(lastCooldownProvider.until).toISOString()}` +
+        (lastCooldownProvider.isQuota ? ' (quota/billing 错误)' : '')
+      : '';
+    throw new Error(`全部 AI provider 失败：${lastErr?.message || 'unknown'}.${diagnosis}`);
   });
 }
 
@@ -87,25 +230,37 @@ export async function aiStreamChat(
   onChunk?: (chunk: StreamChunk) => void
 ): Promise<ChatResult> {
   return withLLMSlot(async () => {
-    const providers = enabledProviders();
-    if (providers.length === 0) {
+    const allProviders = enabledProviders();
+    if (allProviders.length === 0) {
       onChunk?.({ type: 'error', error: '没有任何 AI provider 可用' });
       throw new Error('No AI provider available');
     }
 
+    const now = Date.now();
+    const available = filterAvailable(allProviders, now);
+    if (available.length === 0) {
+      onChunk?.({ type: 'error', error: '所有 AI provider 都在 cooldown 中' });
+      throw new Error('All AI providers in cooldown');
+    }
+
     let lastErr: Error | null = null;
-    for (const p of providers) {
+    for (const p of available) {
       try {
-        return await p.streamChat(messages, opts, onChunk);
+        console.info(`[ai-router] stream attempt ${p.name} (priority=${p.priority})`);
+        const r = await p.streamChat(messages, opts, onChunk);
+        recordSuccess(p.name);
+        return r;
       } catch (e) {
-        lastErr = e as Error;
-        const msg = (e as Error).message;
-        console.warn(`[ai-router] ${p.name}.streamChat failed: ${msg}`);
-        // P0-5：余额/配额错误立即降级，避免无意义的 30s 超时等待
-        if (/402|429|insufficient_quota|quota|billing|balance/i.test(msg)) {
-          console.warn(`[ai-router] ${p.name} 余额/配额耗尽，立即降级到下一层`);
-          continue;
+        const err = e as Error;
+        lastErr = err;
+        const { cooldownUntil, isQuota } = recordFailure(p.name, err);
+        console.warn(`[ai-router] ${p.name}.streamChat ✗ ${err.message.slice(0, 120)}`);
+        if (cooldownUntil > 0) {
+          console.warn(
+            `[ai-router] ${p.name} cooldown until ${new Date(cooldownUntil).toISOString()}`
+          );
         }
+        if (isQuota) continue;
       }
     }
     throw new Error(`全部 AI provider 失败：${lastErr?.message || 'unknown'}`);
