@@ -1,9 +1,0 @@
-{
-  "round": 25,
-  "user_say": "\u9047\u5230\u8fc7\uff0c\u540e\u6765\u8c03\u5c0f\u4e86 replica.lag.time.max.ms",
-  "ai_say": "{\"code\": \"STREAM_ERROR\", \"message\": \"\u5168\u90e8 AI provider \u5931\u8d25\uff1a402 Insufficient Balance\"}",
-  "ai_chars": 81,
-  "http": 200,
-  "time_sec": 37,
-  "is_finish": false
-}

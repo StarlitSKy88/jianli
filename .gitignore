@@ -65,6 +65,10 @@ blob-report/
 
 # Debug / scratch directories (Sprint 1 hygiene)
 .dbg*/
+.stress*/
+.stress13*/
+.stress14*/
+.stress-debug*/
 .env.local.backup
 .env.local.bak
 

@@ -1,9 +1,0 @@
-{
-  "round": 26,
-  "user_say": "\u53e6\u5916 producer \u7528 acks=all + idempotent \u4fdd\u8bc1\u4e0d\u4e22",
-  "ai_say": "",
-  "ai_chars": 0,
-  "http": 200,
-  "time_sec": 43,
-  "is_finish": false
-}
