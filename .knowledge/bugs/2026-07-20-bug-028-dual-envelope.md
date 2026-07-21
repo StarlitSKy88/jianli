@@ -77,6 +77,17 @@ INTERVIEW_ID=xxx node scripts/fix-interview-report.js
 
 ## Lessons
 
+### 0. 诊断 403 时第一动作是比对 userId
+**症状变种**：prod 报告页有时是"加载中…"（envelope 问题），有时是"无权查看该报告"（403 forbidden）。
+两者根因完全不同：
+
+| 现象 | 根因 | 诊断命令 |
+|---|---|---|
+| "加载中…" | API envelope 形状与前端期望不一致 | curl API 看 response body |
+| "无权查看" | 当前登录 userId ≠ interview.userId | 解码 JWT cookie 看 userId，对比 DB `interview.userId` |
+
+**铁律**：每次报障先 console + network 看 HTTP code，**403 不是 envelope 问题，是 ownership 问题**。
+
 ### 1. Envelope 形状必须 incremental
 任何 `{ ok, data }` 包装层的引入应该是**新增字段**，不是**替换**。
 老字段保留 N 个版本（v1/v2/v3），前端按需读取。
