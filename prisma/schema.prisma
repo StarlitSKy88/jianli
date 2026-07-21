@@ -330,3 +330,92 @@ model Feedback {
   @@index([userId, createdAt])
   @@map("feedbacks")
 }
+
+// ============================================
+// 13. ScoreAnchor — 评分漂移检测锚点（Phase 14.24）
+// ============================================
+// 设计目标：
+// - 维护一份"金标准"评分锚点集
+// - 每次跑 AI 评分时随机抽几个锚点做对照实验
+// - driftDelta = |aiScore - humanScore|，超过阈值视为漂移
+// - 累积到告警阈值时写入 AnchorDriftAlert
+//
+// 字段语义：
+// - humanScore: 人工最终打分（0-100），即"真值"
+// - expectedScoreMin/Max: 期望容忍区间（同一问题不同人打分可能略不同）
+// - driftThreshold: 单条超过此 delta 视为漂移（默认 5 分）
+// - isActive: false 表示退役的锚点（不再抽样，但保留历史）
+model ScoreAnchor {
+  id                String   @id @default(cuid())
+  company           String
+  role              String
+  level             String
+  dimension         String
+  questionText      String   @db.Text
+  referenceAnswer   String   @db.Text
+  humanScore        Int
+  expectedScoreMin  Int
+  expectedScoreMax  Int
+  driftThreshold    Int      @default(5)
+  tags              Json?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  evaluations AnchorEvaluation[]
+
+  @@index([company, dimension, isActive])
+  @@index([isActive])
+  @@map("score_anchors")
+}
+
+// ============================================
+// 14. AnchorEvaluation — 锚点评估历史（每次 AI 评分对照结果）
+// ============================================
+model AnchorEvaluation {
+  id           String   @id @default(cuid())
+  anchorId     String
+  agentName    String
+  agentVersion String
+  aiScore      Int
+  driftDelta   Int
+  isDrift      Boolean
+  aiReasoning  String?  @db.Text
+  evaluatedAt  DateTime @default(now())
+  durationMs   Int
+
+  anchor ScoreAnchor @relation(fields: [anchorId], references: [id], onDelete: Cascade)
+
+  @@index([anchorId, evaluatedAt(sort: Desc)])
+  @@index([isDrift, evaluatedAt(sort: Desc)])
+  @@index([agentName, evaluatedAt(sort: Desc)])
+  @@map("anchor_evaluations")
+}
+
+// ============================================
+// 15. AnchorDriftAlert — 漂移告警聚合
+// ============================================
+// AlertSeverity:   LOW | MEDIUM | HIGH
+// AlertStatus:     NEW | ACKNOWLEDGED | RESOLVED
+model AnchorDriftAlert {
+  id              String   @id @default(cuid())
+  company         String
+  dimension       String
+  agentName       String
+  windowStart     DateTime
+  windowEnd       DateTime
+  sampleCount     Int
+  driftCount      Int
+  driftRate       Float
+  avgDelta        Float
+  maxDelta        Int
+  severity        String
+  status          String   @default("NEW")
+  acknowledgedBy  String?
+  acknowledgedAt  DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([company, dimension, windowEnd(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("anchor_drift_alerts")
+}

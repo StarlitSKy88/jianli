@@ -53,7 +53,7 @@ export async function scoreOne(input: ScoreInput): Promise<ScoreOutput> {
   }
 }
 
-function buildScoringPrompt(input: ScoreInput): { system: string; user: string } {
+export function buildScoringPrompt(input: ScoreInput): { system: string; user: string } {
   const prompt = loadScorerPrompt(input.company, input.dimension);
   const companyUpper = input.company.toUpperCase();
 
