@@ -17,6 +17,8 @@ import { hashPassword } from '@/lib/auth/password';
 import { successResponse, errorResponse, validationErrorResponse } from '@/lib/auth/middleware';
 import { consumeVerifyCode } from '@/lib/auth/verify-code';
 import { track } from '@/lib/analytics/track';
+import { signSession } from '@/lib/auth/session';
+import { setAuthCookie } from '@/lib/auth/cookie';
 import {
   isHoneypotTriggered,
   checkRateLimitAsync,
@@ -118,5 +120,10 @@ export async function POST(req: NextRequest) {
 
   track(user.id, 'signup_complete', { email: email.replace(/(.{2}).*(@.*)/, '$1***$2') });
 
-  return successResponse({ userId: user.id, email: user.email }, 201, req);
+  // 自动登录：注册成功后立即签发 JWT 并设 cookie，避免前端需要再调一次 login
+  // （这是 prod 流程，注册后应该直接跳到 /interview/new）
+  const token = await signSession({ userId: user.id, email: user.email });
+  const res = successResponse({ userId: user.id, email: user.email }, 201, req);
+  setAuthCookie(res, token);
+  return res;
 }
