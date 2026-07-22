@@ -166,9 +166,9 @@ pnpm elf-g "用户注册时邮箱重复应返回 409 而不是 500"
 
 | 命令 | 脚本 | 核心逻辑 |
 |---|---|---|
-| `pnpm compound` | `scripts/compound.sh` | 调 6 个 lib/compound/* Agent |
-| `pnpm review` | `scripts/review.sh` | 调 14 个审查 Agent |
-| `pnpm elf-g` | `scripts/elf-g.sh` | 需求 → 自动开发 → 测试 → PR |
+| `pnpm compound` | `scripts/compound.sh` v0.1 ✅ | 问答式引导生成 YAML 经验卡骨架 + git commit |
+| `pnpm review` | `scripts/review.sh` v0.1 ✅ | 按路径自动派 1-4 个 subagent(code-reviewer / security / tdd-guide / refactor-cleaner) |
+| `pnpm elf-g` | 待开发 | 一键需求 → 自动开发 → 测试 → PR |
 
 ---
 
@@ -328,13 +328,13 @@ pnpm env-check          # 环境变量检查
 |---|---|
 | `pnpm type-check` | 0 errors |
 | `pnpm build` | 0 warnings / 0 errors |
-| `pnpm test` (vitest) | 132/132 passed（Sprint 1 +4：ses-sender 4 个） |
+| `pnpm test` (vitest) | 227/227 passed（Round 4 +8：admin-auth 8 个） |
 | `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
 | 静态页面 | 7 个（**+2**：/sitemap.xml /robots.txt 约定生成） |
 | 动态 API 路由 | 22 个（Login/Logout/Register/SendCode/Reset/VerifyCode/Feedback + Interview×3 + Payment×2 + Resume×2 + Admin×5 + Test×3）|
-| 知识卡 | patterns **10** + bugs **18** + recipes **2** = 30 张（Phase 14.22 + bug-018 终极根因） |
+| 知识卡 | patterns **10** + bugs **22** + recipes **2** = 34 张（Round 4 +4：bug-030/031/032/turnstile-bypass/admin-email-case） |
 | First Load JS（首页）| 87.2 kB |
 | Phase 14.4 mock 30 轮 | **30/30 = 100% 业务成功率**，8 维度评分入库 |
 | Phase 14.5 mock 维度差异化 | byte 5 维度评分 **unique ≥ 6**（修复前 = 1） |
