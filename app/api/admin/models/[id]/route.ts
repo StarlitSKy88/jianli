@@ -10,6 +10,7 @@ import {
   errorResponse,
   validationErrorResponse,
 } from '@/lib/auth/middleware';
+import { isAdmin } from '@/lib/auth/admin';
 import { updateProvider, getProviderConfig } from '@/lib/ai/admin-store';
 
 const UpdateSchema = z.object({
@@ -18,15 +19,6 @@ const UpdateSchema = z.object({
   baseURL: z.string().url().optional(),
   apiKey: z.string().min(1).max(500).optional(),
 });
-
-function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const list = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.includes(email);
-}
 
 const ALLOWED_IDS = ['minimax', 'claude', 'deepseek'] as const;
 type ProviderId = (typeof ALLOWED_IDS)[number];

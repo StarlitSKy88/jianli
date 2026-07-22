@@ -22,6 +22,7 @@ import {
   errorResponse,
   validationErrorResponse,
 } from '@/lib/auth/middleware';
+import { isAdmin } from '@/lib/auth/admin';
 
 const COMPANY_VALUES = ['byte', 'ali', 'tencent', 'bili'] as const;
 const DIMENSION_VALUES = [
@@ -34,15 +35,6 @@ const DIMENSION_VALUES = [
   'star',
   'pressure',
 ] as const;
-
-function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const list = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.includes(email);
-}
 
 const CreateSchema = z
   .object({

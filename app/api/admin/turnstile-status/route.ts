@@ -12,16 +12,7 @@
  */
 import { NextRequest } from 'next/server';
 import { successResponse, errorResponse, getSession } from '@/lib/auth/middleware';
-
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
-function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return ADMIN_EMAILS.includes(email.toLowerCase());
-}
+import { isAdmin } from '@/lib/auth/admin';
 
 export async function GET(req: NextRequest) {
   // Bug-003 修复：统一用 session 鉴权，不再信任 query 参数

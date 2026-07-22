@@ -3,16 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { getSession, successResponse, errorResponse } from '@/lib/auth/middleware';
+import { isAdmin } from '@/lib/auth/admin';
 import { testProvider } from '@/lib/ai/admin-store';
-
-function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const list = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.includes(email);
-}
 
 const ALLOWED_IDS = ['minimax', 'claude', 'deepseek'] as const;
 type ProviderId = (typeof ALLOWED_IDS)[number];

@@ -15,15 +15,7 @@ import {
   errorResponse,
   validationErrorResponse,
 } from '@/lib/auth/middleware';
-
-function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const list = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.includes(email);
-}
+import { isAdmin } from '@/lib/auth/admin';
 
 // 仅允许更新评分相关字段，禁止改 company/role/level/dimension（这些是 anchor 的"身份"）
 const UpdateSchema = z.object({
