@@ -322,6 +322,7 @@ pnpm env-check          # 环境变量检查
 | Sprint 1 上线 Gap 收尾 | ✅ 完成（2026-07-15） | 5 项任务全过：**G2 埋点对齐 PRD**（signup_complete/resume_uploaded/interview_started/interview_completed/payment_success；旧名 register_success/interview_start/interview_finish 全 rename + 19 事件白名单 + rate-limit-track 单测同步）+ **G9 Cookie 安全**（lib/auth/cookie.ts 抽出 setAuthCookie/clearAuthCookie）+ **G7 SEO**（app/sitemap.ts + app/robots.ts 约定生成 + layout metadataBase）+ **G3 SES 邮件**（lib/email/ses-sender.ts nodemailer + EMAIL_SENDER_MODE 切换 + 4 单测 + docs/EMAIL_SETUP.md + scripts/edgeone-inject-env.ts）。**Build**：132/132 vitest + 0 type errors + 0 lint warnings；routes 21→23（+sitemap.xml +robots.txt）；**MVP 状态**：5 Gap 修 4，G1 微信支付 + G4 admin 反馈页按决策延后 |
 | Phase 14.22 EdgeOne Pages 128MiB 部署上限终极根因 | ✅ 完成（2026-07-16） | **真凶**：EdgeOne Pages cloud-functions 制品 128MiB 硬上限，build 145MiB 超限 → 「构建状态 ✅ 成功」+「错误日志 ❌ Cloud SSR Node functions package size exceeds 128MiB limit (145MiB)」**同时存在**（默认折叠错误日志，UI 误导）。Phase 14.6–14.21 共 6 个迭代的 prisma 修复（bug-013/014/015/016/017）从未真正部署过。**修复（commit 277bd1c）**：binaryTargets 精简 `["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]` + 同步精简 `outputFileTracingIncludes` + `cloudFunctions.includeFiles`，build 145MiB → 110MiB。**验证**：`curl /api/test-helper/diagnose-prisma-direct` 返回 `{"ok":true,"prismaVersion":"5.20.0","engineQuery":{"success":true,"error":null,"userCount":0}}` ✅ prod 真实环境 `prisma.user.findUnique()` 跑通。**固化**：bug-018-edgeone-pages-128mib-size-limit.md（5-step 部署前必查 + 5-step 部署后必查），部署文档 § 9.2 加 ⛔ 条目 |
 | Phase 14.5 Round 5 AI 评分差异化 4 bug 闭环 | ✅ 完成（2026-07-23） | 4 张 bug 卡固化（B-005/006/007/008），单测 5/5 + e2e 26 轮 byte P7 = totalScore 77（5 维度差异 76/80/82/78/72）。**Bug-005 (HIGH)**：mock AI 维度提取取第一个匹配（被 prompt body 标题"评分维度：STAR"污染）→ 改 matchAll + 取最后一个。**Bug-006 (HIGH)**：aggregator 把缺失维度 fallback 60 分也算进总分加权 → 加 `if (s)` 守卫。**Bug-007 (CRITICAL)**：zod transcript.max(50) 阻止 26+ 轮对话触发评分 → 改 max(100)。**Bug-008 (HIGH)**：USE_MOCK_AI=1 没强制只用 mock，真实 AI 返回 <think>CoT 污染评分 → router 顶层短路。vitest 232/232（+5 scoring-differentiation.test.ts）|
+| Phase 14.6 Round 6 SSE 流式响应边界压测 | ✅ 完成（2026-07-23） | **12/12 边界用例通过**（`tests/stress/sse-boundary-tests.sh` E1-E12）：鉴权 401 / 面试不存在 404 / 跨用户 403 / 空 messages 400 / content>2000 字符 400 / 已 COMPLETED 400 / 转义+引号 业务成功 / finish 评分触发 / empty finish 400 / **5 并发 finish race 报告完整** / SSE abort 后 server 仍 200 / JSON 注入不崩。**Bug-009 (HIGH)**：`lib/utils/rate-limit.ts#checkLimit` 不读 `DISABLE_RATE_LIMIT=1` 环境变量 → 5 并发中 3 个被 429 拒（对齐 `lib/auth/anti-abuse.ts#checkRateLimit` 已有的短路，入口加 `NODE_ENV !== "production"` guard）。**固化**：bug-009 卡 + pattern `debug-toggle-mirroring` （DISABLE_RATE_LIMIT / USE_MOCK_AI / DISABLE_TURNSTILE 三个"调试开关只抄一半"真实案例）。**D1 (P0-3 半成品)**：X-Biz-Status header 永远 pending（line 249 在 createStream 前置后未更新）— 留待 Round 7 收尾|
 
 ### 当前质量基线
 
@@ -329,18 +330,19 @@ pnpm env-check          # 环境变量检查
 |---|---|
 | `pnpm type-check` | 0 errors |
 | `pnpm build` | 0 warnings / 0 errors |
-| `pnpm test` (vitest) | 232/232 passed（Round 5 +5：scoring-differentiation 5 个） |
+| `pnpm test` (vitest) | 232/232 passed（Round 5 +5：scoring-differentiation）|
 | `pnpm test:e2e` (Playwright) | 17/17 passed + 1 skipped |
 | 真实链路 | send→resend cooldown→register→login→/me 全 200 ✅ |
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
 | 静态页面 | 7 个（**+2**：/sitemap.xml /robots.txt 约定生成） |
 | 动态 API 路由 | 22 个（Login/Logout/Register/SendCode/Reset/VerifyCode/Feedback + Interview×3 + Payment×2 + Resume×2 + Admin×5 + Test×3）|
-| 知识卡 | patterns **11** + bugs **26** + recipes **2** = 39 张（Round 5 +5：bug-005/006/007/008 + pattern-loop-driven）|
+| 知识卡 | patterns **12** + bugs **27** + recipes **2** = 41 张（Round 6 +2：bug-009 + pattern-debug-toggle-mirroring）|
 | First Load JS（首页）| 87.2 kB |
 | Phase 14.4 mock 30 轮 | **30/30 = 100% 业务成功率**，8 维度评分入库 |
 | Phase 14.5 mock 维度差异化 | byte 5 维度评分 **unique ≥ 6**（修复前 = 1） |
 | mock 维度单测 | tests/unit/mock-dimension-scoring.test.ts **5/5 passed** |
 | Resume dedup race | tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed** |
+| SSE 边界压测 | tests/stress/sse-boundary-tests.sh **12/12 passed**（Round 6: E1 鉴权 / E2 404 / E3 403 / E4-E6/E9 400 / E7 业务成功 / E8 评分触发 / E10 race / E11 abort / E12 JSON 注入）|
 | Sprint 1 上线 Gap | 5 项全过 ✅（G2 埋点 / G7 SEO / G9 Cookie / G3 SES）+ Phase 14.6 Prisma engine 修复（bug-013）|
 | EdgeOne 部署准备 | ✅ Phase 14.6 Prisma binaryTargets + send-verify-code 顶层 try/catch 暴露 message |
 | EdgeOne 128MiB 修复 | ✅ Phase 14.22 — bug-018 终极根因 + 277bd1c 三件套精简 + prod 验证 engineQuery.success=true |

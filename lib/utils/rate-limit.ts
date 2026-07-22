@@ -51,6 +51,14 @@ export async function checkLimit(
   userId: string,
   action: RateLimitAction
 ): Promise<RateLimitResult> {
+  // Bug-009 修复：测试环境 DISABLE_RATE_LIMIT=1 短路(对齐 lib/auth/anti-abuse.ts)
+  // 之前行为:checkRateLimit(IP 限流)读了,但 checkLimit(用户配额)漏了
+  // → round 6 5 并发 finish 中 3 个被 429 拒,e2e 永远凑不齐并发场景
+  // 现在行为:dev/E2E 直接 allowed=true,不动 RateLimit 表
+  if (process.env.NODE_ENV !== 'production' && process.env.DISABLE_RATE_LIMIT === '1') {
+    const resetAt = endOfDay();
+    return { allowed: true, remaining: 999, resetAt, paid: false };
+  }
   const resetAt = endOfDay();
   const windowStart = windowStartOfDay();
 
