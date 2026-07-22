@@ -309,12 +309,17 @@ const MOCK_SCORE_BY_DIMENSION: Record<Dimension, MockScoreResponse> = {
 /**
  * 从 system prompt 中提取维度关键词
  * 例如 system 包含 "- 评分维度：tech" → 返回 'tech'
+ *
+ * Round 5 Bug-005 修复：取最后一个匹配而不是第一个
+ * 原因：scorer prompt body（如 ali/star.md 第一行 "# 评分维度：STAR 行为面试"）
+ *   会先匹配到非维度词（"STAR"），导致 mock 返回错的分数。
+ *   任务上下文末尾 "- 评分维度：${dim}" 才是权威值。
  */
 function extractDimensionFromSystem(systemPrompt: string): Dimension | null {
-  const m = systemPrompt.match(/评分维度[：:]\s*(\w+)/);
-  if (!m) return null;
-  const dim = m[1] as Dimension;
-  return dim in MOCK_SCORE_BY_DIMENSION ? dim : null;
+  const matches = [...systemPrompt.matchAll(/评分维度[：:]\s*(\w+)/g)];
+  if (matches.length === 0) return null;
+  const last = matches[matches.length - 1][1];
+  return last in MOCK_SCORE_BY_DIMENSION ? (last as Dimension) : null;
 }
 
 class MockProvider implements AiProvider {

@@ -27,7 +27,9 @@ export function aggregate(input: AggregateInput): AggregatedReport {
     const s = input.scores[dim];
     const score = s ? s.score : DEFAULT_SCORE;
     radar[dim] = score;
-    used[dim] = score * w;
+    // Bug-006 修复：只有实际传入 score 的维度才进总分加权
+    // 否则 fallback 60 分会被算进分子，但分母只算传入的维度权重 → 稀释成高分
+    if (s) used[dim] = score * w;
   }
 
   // 2. 总分 = 加权求和

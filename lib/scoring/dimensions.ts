@@ -83,7 +83,7 @@ export const ScoreInputSchema = z.object({
         content: z.string().max(2000),
       })
     )
-    .max(50), // 单维度评分最多看 50 条对话
+    .max(100), // 单维度评分最多看 100 条对话(Round 5 Bug-007:30 轮 = 60 条,50 太严)
 });
 export type ScoreInput = z.infer<typeof ScoreInputSchema>;
 

@@ -199,6 +199,21 @@ export async function aiChat(messages: ChatMessage[], opts?: RouterOptions): Pro
       throw new Error('所有 AI provider 都在 cooldown 中 — 请稍后重试或检查 quota');
     }
 
+    // Bug-008 修复：USE_MOCK_AI=1 且未显式 opts.provider → 强制只调 mock
+    // 之前行为:mock 加入候选池但按 priority 排最后,真实 provider 没 cooldown
+    //   时直接被选中,真实 AI 返回 <think>...CoT 污染评分
+    // 现在行为:测试环境用 USE_MOCK_AI=1 就是"只用 mock",不再回退到真实 AI
+    if (process.env.USE_MOCK_AI === '1' && !opts?.provider) {
+      const mockOnly = available.filter((p) => p.name === 'mock');
+      if (mockOnly.length === 0) {
+        throw new Error('USE_MOCK_AI=1 但 mock provider 不可用');
+      }
+      available = mockOnly;
+      console.info(
+        `[ai-router] USE_MOCK_AI=1 → 强制只用 mock (跳过其他 ${available.length - 1} 个 provider)`
+      );
+    }
+
     // 强制指定 provider：把它移到可用列表最前面
     // 用例：anchor-vs-ai.ts --agent=mock 想隔离真实 quota
     // 仍走 fallback 链（如果指定 provider 抛错），保证不阻断
