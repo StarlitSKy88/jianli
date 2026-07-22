@@ -72,7 +72,18 @@ export async function POST(req: NextRequest) {
 
   const { email, password, verifyCode } = parsed.data;
 
-  // 2) 校验验证码（真实流程，不再有 dev bypass）
+  // 2) 已注册检查（前置：避免已注册邮箱消耗验证码 + 返回更精确的 409 而不是 400）
+  // 防并发：pending user 也会匹配 email，所以要看 passwordHash 是否非空
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, emailVerified: true, passwordHash: true },
+  });
+  if (existing && existing.passwordHash && existing.passwordHash.length > 0) {
+    return errorResponse('EMAIL_TAKEN', '该邮箱已注册', 409, req);
+  }
+  // pending user 复用：直接覆盖 passwordHash（update 而不是 create）
+
+  // 3) 校验验证码（真实流程，不再有 dev bypass）
   const verification = await consumeVerifyCode(email, verifyCode);
   if (!verification.ok) {
     track(null, 'register_fail', { reason: `verify_${verification.reason.toLowerCase()}` });
@@ -85,16 +96,6 @@ export async function POST(req: NextRequest) {
         return errorResponse('VERIFY_CODE_INVALID', '验证码错误', 400, req);
     }
   }
-
-  // 3) 已注册检查（防并发：pending user 也会匹配 email，所以要看 passwordHash 是否非空）
-  const existing = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, emailVerified: true, passwordHash: true },
-  });
-  if (existing && existing.passwordHash && existing.passwordHash.length > 0) {
-    return errorResponse('EMAIL_TAKEN', '该邮箱已注册', 409, req);
-  }
-  // pending user 复用：直接覆盖 passwordHash（update 而不是 create）
 
   // 4) hash + 创建/更新用户
   const passwordHash = await hashPassword(password);
