@@ -55,6 +55,12 @@ function sseDone(): Uint8Array {
   return encoder.encode(`data: [DONE]\n\n`);
 }
 
+/** Round 7 Bug-010 修复:在 SSE 帧里发业务状态(success/error)替代不可变的 x-biz-status header。
+ *  永远在 [DONE] 之前发,客户端用 addEventListener('message', ...) 读 event.data.bizStatus 即可。 */
+function sseBizStatus(status: 'success' | 'error'): Uint8Array {
+  return encoder.encode(`data: ${JSON.stringify({ bizStatus: status })}\n\n`);
+}
+
 /** 15s heartbeat（防 proxy idle timeout / 中途断连） */
 const HEARTBEAT_MS = 15_000;
 
@@ -211,6 +217,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           });
         }
 
+        // Round 7 Bug-010 修复:业务状态通过 SSE event 携带(替代不可变 header)
+        controller.enqueue(sseBizStatus('success'));
         controller.enqueue(sseDone());
       } catch (e) {
         // P0-3 修复：结构化日志，让监控/告警能基于此聚合"业务失败率"
@@ -225,6 +233,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         controller.enqueue(
           sseEvent({ error: { code: 'STREAM_ERROR', message: (e as Error).message } })
         );
+        // Round 7 Bug-010 修复:错误路径也发 bizStatus=error
+        controller.enqueue(sseBizStatus('error'));
         controller.enqueue(sseDone());
       } finally {
         if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -244,9 +254,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       connection: 'keep-alive',
       // 防中间代理 buffer
       'x-accel-buffering': 'no',
-      // P0-3 修复：业务状态通过 X-Biz-Status 头显式标注（区分 HTTP 200 传输成功 vs 业务成功）
-      // 取值：pending / success / error。前端 + 监控可据此聚合"业务成功率"而非"HTTP 200 率"
-      'x-biz-status': 'pending',
+      // 业务状态改用 SSE event 携带 ({bizStatus: success/error})：
+      // HTTP header 一旦发送就不可变 (HTTP/1.1 §7),之前 x-biz-status: pending 永远不会被更新。
+      // Round 7 Bug-010 修复：移除不可靠的 header,把业务状态挪到 SSE 数据帧。
     },
   });
 }

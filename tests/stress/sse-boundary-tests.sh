@@ -24,7 +24,7 @@ set +e
 cd "$(dirname "$0")/../.."
 
 BASE="${BASE:-http://localhost:3001}"
-RES_DIR="./.stress6-r-$$"
+RES_DIR="./.stress-${BASHPID:-$$}"
 mkdir -p "$RES_DIR"
 
 ok() { echo -e "  \033[1;32m✓\033[0m $1"; }
@@ -272,8 +272,72 @@ else
   FAIL=$((FAIL+1))
 fi
 
+# Round 7: 业务状态事件验证 (X-Biz-Status 已废弃,改在 SSE event 里发 bizStatus)
+#   E13 SSE 数据流应含 bizStatus="success" 事件
+#   E14 finish=true 时 bizStatus 仍为 success (业务成功 = 评分成功入库)
+#   E15 不应再返回 x-biz-status header (HTTP 协议层无法更新)
+#   E16 异常场景: 在这条留待观察 (D2 后续可能补)
+
+echo ""
+echo "━━━ E13: 非 finish 流 应含 bizStatus=success 事件 ━━━"
+COOKIES_F="$RES_DIR/cf.txt"; rm -f $COOKIES_F
+INFO_F=$(register_and_setup "$COOKIES_F")
+IV_F=$(echo $INFO_F | cut -d'|' -f2)
+curl -s -N -b "$COOKIES_F" -X POST -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"业务状态测试"}]}' \
+  -D "$RES_DIR/e13.h" -o "$RES_DIR/e13.txt" \
+  "$BASE/api/interview/$IV_F/message" 2>/dev/null
+E13_DATA=$(extract_data "$RES_DIR/e13.txt")
+if echo "$E13_DATA" | grep -q '"bizStatus":"success"'; then
+  ok "E13 bizStatus=success 事件 ✓"
+  PASS=$((PASS+1))
+else
+  fail "E13 没找到 bizStatus=success 事件: ${E13_DATA:0:200}"
+  FAIL=$((FAIL+1))
+fi
+
+echo ""
+echo "━━━ E14: finish=true 流 应含 bizStatus=success (评分成功) ━━━"
+OUT_F="$RES_DIR/e14.txt"
+sse_call "$COOKIES_F" "$IV_F" \
+  '{"messages":[{"role":"user","content":"E14 收尾"}],"finish":true}' \
+  "$OUT_F" 2>/dev/null
+sleep 3
+E14_DATA=$(extract_data "$OUT_F")
+if echo "$E14_DATA" | grep -q '"bizStatus":"success"'; then
+  ok "E14 finish 流 bizStatus=success 事件 ✓"
+  PASS=$((PASS+1))
+else
+  fail "E14 finish 流没找到 bizStatus=success: ${E14_DATA:0:200}"
+  FAIL=$((FAIL+1))
+fi
+
+echo ""
+echo "━━━ E15: 不应再返回 x-biz-status HTTP header ━━━"
+# HTTP header 一旦发出就不可变,业务状态只能在 SSE event 里传
+# 这是 Round 7 的核心修复:从 header 改到 SSE event
+COOKIES_G="$RES_DIR/cg.txt"; rm -f $COOKIES_G
+INFO_G=$(register_and_setup "$COOKIES_G")
+IV_G=$(echo $INFO_G | cut -d'|' -f2)
+curl -s -N -b "$COOKIES_G" -X POST -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"header 测试"}]}' \
+  -D "$RES_DIR/e15.h" -o /dev/null \
+  "$BASE/api/interview/$IV_G/message" 2>/dev/null
+# 过滤大小写,因为 RFC 7230 头字段大小写不敏感
+HAS_HEADER=$(grep -i '^x-biz-status:' "$RES_DIR/e15.h" | head -1 | tr -d '\r' | awk '{print $2}')
+if [ -z "$HAS_HEADER" ]; then
+  ok "E15 x-biz-status header 已移除 ✓"
+  PASS=$((PASS+1))
+elif [ "$HAS_HEADER" = "pending" ]; then
+  fail "E15 仍然返回永远 pending 的 header (Round 7 修复目标)"
+  FAIL=$((FAIL+1))
+else
+  fail "E15 x-biz-status header 仍是 '$HAS_HEADER',需移除"
+  FAIL=$((FAIL+1))
+fi
+
 echo ""
 echo "================================="
-echo -e "\033[1;36mRound 6 汇总:\033[0m PASS=$PASS FAIL=$FAIL"
+echo -e "\033[1;36mRound 7 汇总:\033[0m PASS=$PASS FAIL=$FAIL (Round 6 12 + Round 7 3 = 期望 15/15)"
 echo "产物: $RES_DIR"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
