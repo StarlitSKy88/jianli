@@ -182,7 +182,8 @@ OUT="$RES_DIR/e8.txt"; HEADERS="$RES_DIR/e8.h"
 sse_call "$COOKIES_B" "$IV_B" \
   '{"messages":[{"role":"user","content":"好的,结束"}],"finish":true}' \
   "$OUT" 2>/dev/null
-sleep 3
+# Round 9: finish 评分改成 fire-and-forget,需要等 mock 5 维度 + Prisma 写入 ~5s
+sleep 8
 REPORT=$(curl -s -b "$COOKIES_B" "$BASE/api/interview/$IV_B/report")
 SCORE=$(echo "$REPORT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('report',{}).get('totalScore') or 'NONE')")
 if [ "$SCORE" != "NONE" ] && [ "$SCORE" != "60" ]; then
@@ -226,7 +227,8 @@ curl -s -b "$COOKIES_D" -X POST -H "Content-Type: application/json" \
     -d '{"messages":[{"role":"user","content":"并发B结束"}],"finish":true}' \
     "$BASE/api/interview/$IV_D/message" > "$RES_DIR/e10b.txt" 2>&1 ) &
 wait
-sleep 3
+# Round 9: finish 评分改成 fire-and-forget,需要等 mock 5 维度 + Prisma 写入 ~5s
+sleep 8
 # 关键断言:报告仍然存在且 totalScore 不为 None
 REPORT=$(curl -s -b "$COOKIES_D" "$BASE/api/interview/$IV_D/report")
 SCORE=$(echo "$REPORT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('report',{}).get('totalScore') or 'NONE')")
@@ -361,13 +363,10 @@ else
 fi
 
 echo ""
-echo "━━━ E17: client 早断在 finish 时 不应丢失评分 + status (Round 9 PENDING) ━━━"
-# 已识别 follow-up: client 在 finish=true 时早断 → start() 内 await chain 被 AbortSignal 取消
-#   → finish 评分路径 (prisma.interview.update COMPLETED + scoreOne x 5 + saveReport) 整体被跳过
-#   → status 永远 IN_PROGRESS,report 不存在 — 用户金钱丢失级别 P1
-# 暂未修复: 修复方向见 .knowledge/bugs/2026-07-24-finish-score-lost-on-client-abort.md
-#   方案 2: 把 finish 路径移到 ReadableStream.cancel(reason) 钩子
-# 当前 skip: 不计入 PASS/FAIL,但打印 PENDING 让 CI 能 grep
+echo "━━━ E17: client 早断在 finish 时 不应丢失评分 + status (Round 9 RED→GREEN) ━━━"
+# Round 9 修复目标: client 在 finish=true 时 50ms 早断 → finish 评分路径 (fire-and-forget) 仍完成
+#   期望: status=COMPLETED + totalScore 存在 + report 存在 (来自 .knowledge/bugs/2026-07-24-finish-score-lost-on-client-abort.md)
+# 注: GET /api/interview/[id] 不 include report,需用 /api/interview/[id]/report 查报告
 COOKIES_I="$RES_DIR/ci.txt"; rm -f $COOKIES_I
 INFO_I=$(register_and_setup "$COOKIES_I")
 IV_I=$(echo $INFO_I | cut -d'|' -f2)
@@ -375,9 +374,22 @@ curl -s -N -b "$COOKIES_I" --max-time 0.05 \
   -X POST -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"finish+abort"}],"finish":true}' \
   "$BASE/api/interview/$IV_I/message" > /dev/null 2>&1
-sleep 6
-STATUS=$(curl -s -b "$COOKIES_I" "$BASE/api/interview/$IV_I" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('interview',{}).get('status','?'))")
-echo -e "  \033[1;33m⏸\033[0m E17 PENDING (Round 9): client finish+abort 后 status=$STATUS,已识别 follow-up"
+# 评分需要并发跑 5 维度,USE_MOCK_AI 也需 ~3s + fire-and-forget 不阻塞 client
+# POST handler 等 stream 关闭(可能 8-13s)也观察 totalScore 是否就绪 — 给 15s 余量
+sleep 15
+E17_JSON=$(curl -s -b "$COOKIES_I" "$BASE/api/interview/$IV_I")
+STATUS=$(echo "$E17_JSON" | python3 -c "import sys,json; print(json.loads(sys.stdin.read(), strict=False).get('data',{}).get('interview',{}).get('status','?'))")
+TSCORE=$(echo "$E17_JSON" | python3 -c "import sys,json; d=json.loads(sys.stdin.read(), strict=False).get('data',{}).get('interview',{}); v=d.get('totalScore'); print('None' if v is None else v)")
+REPORT_JSON=$(curl -s -b "$COOKIES_I" "$BASE/api/interview/$IV_I/report")
+REPORT_OK=$(echo "$REPORT_JSON" | python3 -c "import sys,json; d=json.loads(sys.stdin.read(), strict=False); r=d.get('data',{}).get('report') or d.get('report'); print(1 if r else 0)" 2>/dev/null)
+REPORT_OK=${REPORT_OK:-0}
+if [ "$STATUS" = "COMPLETED" ] && [ "$TSCORE" != "None" ] && [ "$REPORT_OK" = "1" ]; then
+  ok "E17 client finish+abort 后 status=$STATUS totalScore=$TSCORE report=存在 ✓"
+  PASS=$((PASS+1))
+else
+  fail "E17 client finish+abort 后 status=$STATUS totalScore=$TSCORE report=${REPORT_OK}份 (期望 COMPLETED + totalScore>0 + report=1)"
+  FAIL=$((FAIL+1))
+fi
 
 echo ""
 echo "================================="

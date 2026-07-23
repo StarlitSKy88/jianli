@@ -27,6 +27,78 @@ import { saveReport } from '@/lib/scoring/persist';
 import { scoreOne } from '@/lib/scoring/scorer';
 import { aggregate } from '@/lib/scoring/aggregator';
 
+/**
+ * Round 9 Bug-R8A-1 修复：finish 评分路径独立函数
+ *
+ * 关键设计决策：把它从 ReadableStream.start() 的 try 块里移出
+ * - 原问题：client 在 finish=true 时早断 → ReadableStream start() 内后续 await 会被 AbortSignal 串 cancel
+ * - 修法：fire-and-forget，不 await，让它在 SSE 流生命周期外独立完成
+ * - 兜底：调用方有 .catch() 捕获意外失败
+ *
+ * 为什么不用 ReadableStream.cancel(reason) 钩子？
+ * - cancel 只在 client disconnect 时触发，正常完成时不触发 → finish 路径分裂两处，难维护
+ * - fire-and-forget 单一路径，覆盖所有 finish=true 场景
+ */
+async function runFinishPipeline(args: {
+  interviewId: string;
+  userId: string;
+  company: InterviewerType;
+  scenarioCompany: string;
+  role: string;
+  level: string;
+  scenarioWeights: Record<string, number>;
+  windowedMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+}): Promise<void> {
+  const {
+    interviewId,
+    userId,
+    company,
+    scenarioCompany,
+    role,
+    level,
+    scenarioWeights,
+    windowedMessages,
+  } = args;
+
+  await prisma.interview.update({
+    where: { id: interviewId },
+    data: { status: 'COMPLETED', endedAt: new Date() },
+  });
+  track(userId, 'interview_completed', { interviewId });
+
+  const dims = (Object.keys(scenarioWeights) as Array<keyof typeof DIMENSION_WEIGHTS.byte>).filter(
+    (d) => scenarioWeights[d] > 0
+  );
+
+  // P0-2 修复：Promise.all 并发评分（aiChat 内部已 withLLMSlot 全局并发限流）
+  const scoreEntries = await Promise.all(
+    dims.map(async (dim) => {
+      const score = await scoreOne({
+        company,
+        role,
+        level,
+        dimension: dim,
+        transcript: windowedMessages,
+      });
+      return [dim as string, score] as const;
+    })
+  );
+  const scores = Object.fromEntries(scoreEntries);
+
+  const report = aggregate({ company, scores });
+  await saveReport({
+    interviewId,
+    userId,
+    company: scenarioCompany,
+    scores,
+    aggregated: report,
+  });
+  await prisma.interview.update({
+    where: { id: interviewId },
+    data: { totalScore: report.totalScore },
+  });
+}
+
 // P0-2 修复：把硬上限 .max(50) 改为 .max(100)，并在解析后做滑动窗口截断
 // 原因：30 轮对话 = 60 条 user+assistant，硬 50 让 round 26 之后被 400 拒
 // 滑动窗口：保留 system 等价 + 最近 N 条 user/assistant 对，N=40 留余量
@@ -121,6 +193,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const company = interview.scenario.company as InterviewerType;
   const scenarioWeights = DIMENSION_WEIGHTS[company];
 
+  // Round 9 Bug-R8A-1 修复：把 finish 评分路径移出 ReadableStream.start() 的 try 块
+  // 原因：client abort → ReadableStream start() 内后续 await 会被 AbortSignal 串 cancel
+  //       → finish 评分(5 await)整链路丢失 → status=IN_PROGRESS, 用户金钱丢失
+  // 解法：fire-and-forget 拆出独立 Promise，不 await，让它在 SSE 流生命周期外独立完成
+  //       .catch 兜底：即使 finish 自身失败也不影响 SSE 主流程
+  if (body.data.finish) {
+    void runFinishPipeline({
+      interviewId: interview.id,
+      userId: session.userId,
+      company,
+      scenarioCompany: interview.scenario.company,
+      role: interview.scenario.role,
+      level: interview.scenario.level,
+      scenarioWeights,
+      windowedMessages,
+    }).catch((e) => {
+      console.error('[finish-pipeline] unexpected failure', {
+        interviewId: interview.id,
+        userId: session.userId,
+        errorMessage: (e as Error).message,
+      });
+    });
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -176,46 +272,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           },
         });
 
-        // 如果是 finish → 触发评分（并行，按 LLM 并发限流走 withLLMSlot）
-        if (body.data.finish) {
-          await prisma.interview.update({
-            where: { id: interview.id },
-            data: { status: 'COMPLETED', endedAt: new Date() },
-          });
-          track(session.userId, 'interview_completed', { interviewId: interview.id });
-
-          const dims = (
-            Object.keys(scenarioWeights) as Array<keyof typeof DIMENSION_WEIGHTS.byte>
-          ).filter((d) => (scenarioWeights as Record<string, number>)[d] > 0);
-
-          // P0-2 修复：Promise.all 并发评分（aiChat 内部已 withLLMSlot 全局并发限流）
-          const scoreEntries = await Promise.all(
-            dims.map(async (dim) => {
-              const score = await scoreOne({
-                company,
-                role: interview.scenario.role,
-                level: interview.scenario.level,
-                dimension: dim,
-                transcript: windowedMessages, // P0-2：评分用滑动窗口后 transcript
-              });
-              return [dim as string, score] as const;
-            })
-          );
-          const scores = Object.fromEntries(scoreEntries);
-
-          const report = aggregate({ company, scores });
-          await saveReport({
-            interviewId: interview.id,
-            userId: session.userId,
-            company: interview.scenario.company,
-            scores,
-            aggregated: report,
-          });
-          await prisma.interview.update({
-            where: { id: interview.id },
-            data: { totalScore: report.totalScore },
-          });
-        }
+        // Round 9 修复：finish 评分路径已移出 start() 之外作为独立 fire-and-forget 任务
+        // 这里不再处理 finish 逻辑（见 runFinishPipeline() + 上方 void 调用）
 
         // Round 7 Bug-010 修复:业务状态通过 SSE event 携带(替代不可变 header)
         controller.enqueue(sseBizStatus('success'));
