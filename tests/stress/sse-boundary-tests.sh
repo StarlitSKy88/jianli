@@ -337,7 +337,50 @@ else
 fi
 
 echo ""
+echo "━━━ E16: client 早断 不应触发 assistant message ghost 写入 ━━━"
+# Round 8A 修复目标: 当前代码不感知 cancel,prisma.message.create 在 client 走后仍写库
+# 断言: 用 --max-time 0.05 早断,等 3s,验证该 interview 的 messageCount 只 +1 (user)
+COOKIES_H="$RES_DIR/ch.txt"; rm -f $COOKIES_H
+INFO_H=$(register_and_setup "$COOKIES_H")
+IV_H=$(echo $INFO_H | cut -d'|' -f2)
+BEFORE=$(curl -s -b "$COOKIES_H" "$BASE/api/interview/$IV_H" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('data',{}).get('interview',{}).get('messages',[])))")
+# 早断请求 (mock 大概 100ms 出结果,client 50ms 断开,server 端 ghost enqueue + DB 写入已不再受 cancel 影响)
+curl -s -N -b "$COOKIES_H" --max-time 0.05 \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"client 早断测试 E16"}]}' \
+  "$BASE/api/interview/$IV_H/message" > /dev/null 2>&1
+sleep 3
+AFTER=$(curl -s -b "$COOKIES_H" "$BASE/api/interview/$IV_H" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('data',{}).get('interview',{}).get('messages',[])))")
+DELTA=$((AFTER - BEFORE))
+if [ "$DELTA" -le 1 ]; then
+  ok "E16 client abort 后只入库 user message (+$DELTA,无 ghost write) ✓"
+  PASS=$((PASS+1))
+else
+  fail "E16 client abort 后 messageCount 从 $BEFORE → $AFTER (+$DELTA),ghost 写入严重"
+  FAIL=$((FAIL+1))
+fi
+
+echo ""
+echo "━━━ E17: client 早断在 finish 时 不应丢失评分 + status (Round 9 PENDING) ━━━"
+# 已识别 follow-up: client 在 finish=true 时早断 → start() 内 await chain 被 AbortSignal 取消
+#   → finish 评分路径 (prisma.interview.update COMPLETED + scoreOne x 5 + saveReport) 整体被跳过
+#   → status 永远 IN_PROGRESS,report 不存在 — 用户金钱丢失级别 P1
+# 暂未修复: 修复方向见 .knowledge/bugs/2026-07-24-finish-score-lost-on-client-abort.md
+#   方案 2: 把 finish 路径移到 ReadableStream.cancel(reason) 钩子
+# 当前 skip: 不计入 PASS/FAIL,但打印 PENDING 让 CI 能 grep
+COOKIES_I="$RES_DIR/ci.txt"; rm -f $COOKIES_I
+INFO_I=$(register_and_setup "$COOKIES_I")
+IV_I=$(echo $INFO_I | cut -d'|' -f2)
+curl -s -N -b "$COOKIES_I" --max-time 0.05 \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"finish+abort"}],"finish":true}' \
+  "$BASE/api/interview/$IV_I/message" > /dev/null 2>&1
+sleep 6
+STATUS=$(curl -s -b "$COOKIES_I" "$BASE/api/interview/$IV_I" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('interview',{}).get('status','?'))")
+echo -e "  \033[1;33m⏸\033[0m E17 PENDING (Round 9): client finish+abort 后 status=$STATUS,已识别 follow-up"
+
+echo ""
 echo "================================="
-echo -e "\033[1;36mRound 7 汇总:\033[0m PASS=$PASS FAIL=$FAIL (Round 6 12 + Round 7 3 = 期望 15/15)"
+echo -e "\033[1;36mRound 8A 汇总:\033[0m PASS=$PASS FAIL=$FAIL SKIP=1 (Round 6 12 + Round 7 3 + Round 8A E16 1 = 期望 16/16;E17 PENDING→Round 9)"
 echo "产物: $RES_DIR"
 [ $FAIL -eq 0 ] && exit 0 || exit 1

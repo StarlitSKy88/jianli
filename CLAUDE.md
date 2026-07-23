@@ -324,6 +324,7 @@ pnpm env-check          # 环境变量检查
 | Phase 14.5 Round 5 AI 评分差异化 4 bug 闭环 | ✅ 完成（2026-07-23） | 4 张 bug 卡固化（B-005/006/007/008），单测 5/5 + e2e 26 轮 byte P7 = totalScore 77（5 维度差异 76/80/82/78/72）。**Bug-005 (HIGH)**：mock AI 维度提取取第一个匹配（被 prompt body 标题"评分维度：STAR"污染）→ 改 matchAll + 取最后一个。**Bug-006 (HIGH)**：aggregator 把缺失维度 fallback 60 分也算进总分加权 → 加 `if (s)` 守卫。**Bug-007 (CRITICAL)**：zod transcript.max(50) 阻止 26+ 轮对话触发评分 → 改 max(100)。**Bug-008 (HIGH)**：USE_MOCK_AI=1 没强制只用 mock，真实 AI 返回 <think>CoT 污染评分 → router 顶层短路。vitest 232/232（+5 scoring-differentiation.test.ts）|
 | Phase 14.6 Round 6 SSE 流式响应边界压测 | ✅ 完成（2026-07-23） | **12/12 边界用例通过**（`tests/stress/sse-boundary-tests.sh` E1-E12）：鉴权 401 / 面试不存在 404 / 跨用户 403 / 空 messages 400 / content>2000 字符 400 / 已 COMPLETED 400 / 转义+引号 业务成功 / finish 评分触发 / empty finish 400 / **5 并发 finish race 报告完整** / SSE abort 后 server 仍 200 / JSON 注入不崩。**Bug-009 (HIGH)**：`lib/utils/rate-limit.ts#checkLimit` 不读 `DISABLE_RATE_LIMIT=1` 环境变量 → 5 并发中 3 个被 429 拒（对齐 `lib/auth/anti-abuse.ts#checkRateLimit` 已有的短路，入口加 `NODE_ENV !== "production"` guard）。**固化**：bug-009 卡 + pattern `debug-toggle-mirroring` （DISABLE_RATE_LIMIT / USE_MOCK_AI / DISABLE_TURNSTILE 三个"调试开关只抄一半"真实案例）。**D1 (P0-3 半成品)**：X-Biz-Status header 永远 pending（line 249 在 createStream 前置后未更新）— 留待 Round 7 收尾|
 | Phase 14.7 Round 7 X-Biz-Status 永远 pending 修复 | ✅ 完成（2026-07-23） | **15/15 stress PASS**（12 老 + 3 新）。**根因**：HTTP/1.1 §7 协议层硬约束——Response header 一旦发出就不可变，P0-3 当年（2026-07-15）加的 `x-biz-status: pending` header 永远不会更新。**修复**：`route.ts` 移除 `x-biz-status` header，成功路径收尾前发 `data: {"bizStatus":"success"}`，错误路径发 `data: {"bizStatus":"error"}`，都放在 `[DONE]` 之前。**新增 helper** `sseBizStatus(status)`。**前端语义**：`event.data.bizStatus` 取业务状态，`event.data.content` 取 AI 内容，向后兼容。**固化**：Bug-010 卡 + E13/E14/E15 三个新 boundary 用例；type-check 0 errors；vitest 232/232 不变（boundary 测是 stress 维度）。**意外发现**（测试脚本 bug）：E13/E15 第一次写时漏掉 URL（只看到 `set +e` 吞了 stderr 但文件没生成），curl exit=2 → 修脚本里加 URL → 修后 15/15 PASS|
+| Phase 14.8 Round 8A SSE abort 健壮性 + E17 识别 follow-up | ✅ 部分完成（2026-07-24） | **16/16 stress PASS + 1 PENDING**。**E16 修✅**：client --max-time 0.05 早断后,`prisma.message.create(INTERVIEWER)` 在 `controller.enqueue` 之前写入,enqueue 单独 try/catch 吞 transport 异常 → 不再有 ghost assistant message。**E17 留 Round 9 P1**：`prisma.message.create({USER})` 写入成功,但后面 `prisma.interview.update({status:COMPLETED})` 在 start() 内 await chain 被 AbortSignal 隐式取消 → finish 评分路径(prisma.interview.update + scoreOne x 5 + saveReport + totalScore)整体不跑 → status=IN_PROGRESS forever,report 不存在 — 用户金钱丢失级别。**修法方向**（已记入 bug-R8A-1 卡）：把 finish 路径移出 `ReadableStream.start()` 的 try,放进 `ReadableStream.cancel(reason)` 钩子(或独立 fire-and-forget 后台任务),使其在 client abort 时仍能跑。**Loop 纪律**：调试 next dev + Prisma + abort 多源叠加时一次 loop 内不要追求修完,写好 follow-up 卡下个 loop 在稳定 env 里继续。**测试基础设施是新资产**：E1-E17 边界用例作为对抗回归基线全部 commit。**撤回**：尝试修 E17 时改了 route.ts,发现 dev hot reload + Prisma P1001 噪声让信号不稳,谨慎回退至 Round 7 末态避免回归。|
 
 ### 当前质量基线
 
@@ -337,13 +338,13 @@ pnpm env-check          # 环境变量检查
 | 评分 prompt | 8 关键维度 × 4 公司 YAML + 6 兜底维度 = 14 文件 |
 | 静态页面 | 7 个（**+2**：/sitemap.xml /robots.txt 约定生成） |
 | 动态 API 路由 | 22 个（Login/Logout/Register/SendCode/Reset/VerifyCode/Feedback + Interview×3 + Payment×2 + Resume×2 + Admin×5 + Test×3）|
-| 知识卡 | patterns **12** + bugs **28** + recipes **2** = 42 张（Round 7 +1：bug-010-x-biz-status）|
+| 知识卡 | patterns **12** + bugs **29** + recipes **2** = 43 张（Round 8A +1：bug-R8A-1-finish-score-lost-on-client-abort）|
 | First Load JS（首页）| 87.2 kB |
 | Phase 14.4 mock 30 轮 | **30/30 = 100% 业务成功率**，8 维度评分入库 |
 | Phase 14.5 mock 维度差异化 | byte 5 维度评分 **unique ≥ 6**（修复前 = 1） |
 | mock 维度单测 | tests/unit/mock-dimension-scoring.test.ts **5/5 passed** |
 | Resume dedup race | tests/stress/phase-13-8-resume-dedup-race.sh **4/4 passed** |
-| SSE 边界压测 | tests/stress/sse-boundary-tests.sh **15/15 passed**（Round 6 12 + Round 7 +3 E13/E14/E15 bizStatus 事件 + 移除 x-biz-status header）|
+| SSE 边界压测 | tests/stress/sse-boundary-tests.sh **16/16 passed + E17 PENDING**（Round 6 12 + Round 7 E13/14/15 + Round 8A E16 ghost-write + E17 暂 skip）|
 | Sprint 1 上线 Gap | 5 项全过 ✅（G2 埋点 / G7 SEO / G9 Cookie / G3 SES）+ Phase 14.6 Prisma engine 修复（bug-013）|
 | EdgeOne 部署准备 | ✅ Phase 14.6 Prisma binaryTargets + send-verify-code 顶层 try/catch 暴露 message |
 | EdgeOne 128MiB 修复 | ✅ Phase 14.22 — bug-018 终极根因 + 277bd1c 三件套精简 + prod 验证 engineQuery.success=true |
